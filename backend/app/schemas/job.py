@@ -174,6 +174,16 @@ class JobPublishRequest(StrictModel):
 
 
 class SalaryRead(ORMModel):
+    """Structured, never a formatted string.
+
+    Formatting is a presentation decision — currency placement and digit
+    grouping differ by locale, and a server-rendered "PKR 250,000/mo" cannot be
+    re-sorted or converted by the client. `disclosed` distinguishes "this
+    employer did not state a salary" from a genuine zero; when it is false the
+    bounds are omitted entirely rather than sent as nulls the UI must
+    special-case.
+    """
+
     min: Decimal | None = None
     max: Decimal | None = None
     currency: str
@@ -183,7 +193,12 @@ class SalaryRead(ORMModel):
 
 class JobSummary(ORMModel):
     """List row. Carries no description and no apply_url — a list of 20 should
-    not ship 20 job descriptions."""
+    not ship 20 job descriptions.
+
+    It *does* carry salary: it is the single most-read field on a job card, and
+    a list that omits it forces the client to fetch every detail page to render
+    one screen.
+    """
 
     id: UUID
     slug: str
@@ -198,6 +213,7 @@ class JobSummary(ORMModel):
     experience_level: ExperienceLevel
     experience_min_years: int | None
     experience_max_years: int | None
+    salary: SalaryRead
     badge: JobBadge
     featured: bool
     verified: bool

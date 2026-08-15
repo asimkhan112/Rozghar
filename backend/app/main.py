@@ -11,6 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.api import ops as ops_router
+from app.api import seo as seo_router
 from app.api.middleware import register_middleware
 from app.api.v1.routers import admin_admins as admin_admins_router
 from app.api.v1.routers import admin_analytics as admin_analytics_router
@@ -153,6 +154,7 @@ def create_app() -> FastAPI:
     # and load-balancer target groups, which must not move when the API
     # version does.
     app.include_router(ops_router.router)
+    app.include_router(seo_router.router)
 
     app.include_router(auth_router.router, prefix=settings.api_v1_prefix)
     app.include_router(jobs_router.router, prefix=settings.api_v1_prefix)

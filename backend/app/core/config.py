@@ -27,6 +27,13 @@ class Settings(BaseSettings):
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
 
+    #: Public origin, used to build absolute URLs the application does not
+    #: serve itself — sitemap entries, canonical links, structured data.
+    #: Relative URLs are invalid in all three, so this cannot be derived from
+    #: the request: a sitemap fetched through a proxy would otherwise advertise
+    #: the proxy's internal hostname to Google.
+    site_url: str = "http://localhost:8443"
+
     # --- database --------------------------------------------------------
     postgres_host: str = "localhost"
     postgres_port: int = 5432

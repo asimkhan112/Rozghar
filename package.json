@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "format": "oxfmt",
     "snapshot": "node tools/render-snapshot.mjs",
-    "snapshot:diff": "node tools/compare-appearance.mjs"
+    "snapshot:diff": "node tools/compare-appearance.mjs",
+    "verify:auth": "node tools/verify-auth.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

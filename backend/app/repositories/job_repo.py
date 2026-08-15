@@ -163,6 +163,22 @@ class JobRepository(BaseRepository[Job]):
         )
         return (await self.session.execute(stmt)).scalar_one() > 0
 
+    async def published_slugs(self, *, limit: int) -> list[tuple[str, datetime]]:
+        """Slugs and their last change, for the sitemap.
+
+        Two columns, no relations, no ORM entities — a sitemap of fifty
+        thousand listings must not hydrate fifty thousand `Job` objects with
+        four eager-loaded relations each. Newest first so that if the cap is
+        ever hit, the listings that are dropped are the stalest.
+        """
+        stmt = (
+            select(Job.slug, Job.updated_at)
+            .where(Job.status == JobStatus.PUBLISHED, Job.deleted_at.is_(None))
+            .order_by(Job.published_at.desc().nullslast(), Job.id.desc())
+            .limit(limit)
+        )
+        return [(row[0], row[1]) for row in (await self.session.execute(stmt)).all()]
+
     async def list_related(self, job: Job, *, limit: int = 3) -> list[Job]:
         """Same category or same work type, newest first."""
         stmt = (

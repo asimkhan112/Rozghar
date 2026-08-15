@@ -5,6 +5,10 @@ import path from 'node:path'
 
 import siteConfiguration from './.figma/make/site.json'
 
+/** Where the FastAPI dev server listens. Only used by the dev proxy — in
+ *  production the reverse proxy owns this routing and Vite is not involved. */
+const API_ORIGIN = process.env.API_ORIGIN || 'http://127.0.0.1:8000'
+
 // Vite config — https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // .figma/make/deploy-preview passes `--mode development` for cached-preview builds.
@@ -34,6 +38,16 @@ export default defineConfig(({ mode }) => {
       port: parseInt(process.env.PORT || '8443'),
       strictPort: true,
       watch: { ignored: ['**/.figma/**'] },
+      // Production serves the app and the API from one origin behind a reverse
+      // proxy. This makes local development the same shape, which is not a
+      // convenience: the refresh cookie is `SameSite=Strict`, so a
+      // cross-origin dev setup could not authenticate at all, and every
+      // cookie bug would surface only after deployment.
+      proxy: {
+        '/api': { target: API_ORIGIN, changeOrigin: false },
+        '/sitemap.xml': { target: API_ORIGIN, changeOrigin: false },
+        '/robots.txt': { target: API_ORIGIN, changeOrigin: false },
+      },
     },
     preview: {
       host: '0.0.0.0',

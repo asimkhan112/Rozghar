@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { login } from '@/services/auth.service'
+import { describeError } from '@/lib/http'
 import { useSignIn } from '@/stores/useAuthStore'
 import { authInput, focusRing, linkReset } from '@/design-system'
 import { color, radius, size, tracking, weight } from '@/design-system'
@@ -23,13 +23,20 @@ export default function AdminSignInPage() {
     setError('')
     if (!email || !password) { setError('Please fill in all fields.'); return }
     setLoading(true)
-    const result = await login(email, password)
-    setLoading(false)
-    if (result.ok && result.session) {
-      signIn(result.session)
-      navigate(next, { replace: true })
-    } else {
-      setError(result.error ?? 'Sign in failed.')
+    try {
+      await signIn(email, password)
+      // `next` comes from the URL, so it is attacker-controllable. Only a
+      // same-site path is followed — an absolute URL here would turn the login
+      // page into an open redirect, which is a phishing primitive.
+      navigate(next.startsWith('/') && !next.startsWith('//') ? next : '/admin/dashboard', {
+        replace: true,
+      })
+    } catch (err) {
+      // The API answers with one message for an unknown email and a wrong
+      // password alike; anything more specific enumerates accounts.
+      setError(describeError(err))
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -173,7 +180,7 @@ export default function AdminSignInPage() {
           </div>
 
           <p style={{ textAlign: 'center', fontSize: size.xs, color: color.text.muted, marginTop: 20 }}>
-            Demo credentials: admin@rozgar.pk / admin123
+            Staff access only. Contact an administrator if you need an account.
           </p>
         </div>
       </div>

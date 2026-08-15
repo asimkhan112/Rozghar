@@ -579,3 +579,92 @@ def test_non_remote_location_requires_a_city(client):
         headers=auth(t),
     )
     assert r.status_code == 422
+
+
+# --- public payload completeness ------------------------------------------
+
+
+def test_list_carries_salary_so_a_card_renders_from_one_request(client, world):
+    """A job card shows salary. Omitting it from the list forces the client to
+    fetch every detail page to render one screen of results.
+    """
+    t = token_for(client, ADMIN_EMAIL)
+    job = client.post(
+        ADMIN_JOBS,
+        json=payload(world, title="Salaried Role", salary_min=250000, salary_max=350000),
+        headers=auth(t),
+    ).json()
+    client.post(f"{ADMIN_JOBS}/{job['id']}/publish", headers=auth(t))
+
+    listed = client.get(JOBS, params={"per_page": 50}).json()["items"]
+    row = next(i for i in listed if i["slug"] == job["slug"])
+
+    assert row["salary"]["min"] == "250000.00"
+    assert row["salary"]["max"] == "350000.00"
+    assert row["salary"]["currency"] == "PKR"
+    assert row["salary"]["period"] == "month"
+    assert row["salary"]["disclosed"] is True
+
+
+def test_undisclosed_salary_withholds_the_bounds(client, world):
+    """The columns can still hold a figure — a scraper may have guessed one.
+    Returning it would publish a number nobody agreed to publish.
+    """
+    t = token_for(client, ADMIN_EMAIL)
+    job = client.post(
+        ADMIN_JOBS,
+        json=payload(
+            world,
+            title="Undisclosed Pay Role",
+            salary_min=100000,
+            salary_max=200000,
+            salary_is_disclosed=False,
+        ),
+        headers=auth(t),
+    ).json()
+    client.post(f"{ADMIN_JOBS}/{job['id']}/publish", headers=auth(t))
+
+    detail = client.get(f"{JOBS}/{job['slug']}").json()
+    assert detail["salary"]["disclosed"] is False
+    assert detail["salary"]["min"] is None
+    assert detail["salary"]["max"] is None
+
+
+def test_public_payload_never_exposes_editorial_counters(client, world):
+    """View and apply counts are editorial signals. The public UI does not
+    render them, and publishing them hands competitors a traffic report.
+    """
+    t = token_for(client, ADMIN_EMAIL)
+    job = client.post(ADMIN_JOBS, json=payload(world, title="Counter Role"), headers=auth(t)).json()
+    client.post(f"{ADMIN_JOBS}/{job['id']}/publish", headers=auth(t))
+
+    detail = client.get(f"{JOBS}/{job['slug']}").json()
+    for leaked in ("view_count", "apply_click_count", "save_count", "created_by", "status"):
+        assert leaked not in detail, f"{leaked} must not appear on a public response"
+
+
+# --- suggest ---------------------------------------------------------------
+
+
+def test_suggest_returns_matching_titles(client, world):
+    t = token_for(client, ADMIN_EMAIL)
+    for title in ("Suggestable Engineer", "Suggestable Designer"):
+        job = client.post(ADMIN_JOBS, json=payload(world, title=title), headers=auth(t)).json()
+        client.post(f"{ADMIN_JOBS}/{job['id']}/publish", headers=auth(t))
+
+    results = client.get(f"{JOBS}/suggest", params={"q": "Suggestable"}).json()
+    assert "Suggestable Engineer" in results
+    assert "Suggestable Designer" in results
+
+
+def test_suggest_is_not_swallowed_by_the_slug_route(client):
+    """`/jobs/suggest` and `/jobs/{slug}` are the same shape. Declaration order
+    is what keeps them apart, and nothing else would catch a reorder.
+    """
+    r = client.get(f"{JOBS}/suggest", params={"q": "engineer"})
+    assert r.status_code == 200
+    assert isinstance(r.json(), list)
+
+
+def test_suggest_requires_a_usable_prefix(client):
+    assert client.get(f"{JOBS}/suggest", params={"q": "a"}).status_code == 422

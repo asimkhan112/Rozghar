@@ -1,41 +1,35 @@
-import type { LoginResult, Session } from '@/types/auth'
-
 /**
- * Authentication service.
+ * Authentication API calls.
  *
- * The signature is the one the real endpoint will satisfy
- * (`POST /api/v1/admin/auth/login`), so Phase 8 replaces the body of `login`
- * and nothing else changes.
- *
- * This is NOT security. Credentials checked in the browser are visible to
- * anyone who opens devtools — this only makes the structure correct so that a
- * real backend drops in cleanly. Phase 6 moves the check server-side.
+ * Every call here is `anonymous: true` — they must not carry an access token
+ * and must never trigger the HTTP layer's 401-refresh path, which would
+ * recurse through `refresh` while `refresh` is what is failing.
  */
 
-/** DEV ONLY — seeded credentials for the prototype. Removed in Phase 6. */
-const DEV_CREDENTIALS = {
-  email: 'admin@rozgar.pk',
-  password: 'admin123',
-} as const
+import { api } from '@/lib/http'
+import type { AdminUser, LoginResponse, TokenResponse } from '@/types/auth'
 
-/** Matches the artificial latency the sign-in form was already simulating. */
-const MOCK_LATENCY_MS = 1200
+export function login(email: string, password: string): Promise<LoginResponse> {
+  return api.post<LoginResponse>('/auth/login', { email, password }, { anonymous: true })
+}
 
-const SESSION_TTL_MS = 1000 * 60 * 60 * 8
+/**
+ * Rotates the refresh cookie and mints a new access token.
+ *
+ * Takes no arguments: the cookie is httpOnly, so JavaScript cannot read or
+ * send it explicitly — the browser attaches it because the request is
+ * same-origin and the cookie's path matches.
+ */
+export function refresh(): Promise<TokenResponse> {
+  return api.post<TokenResponse>('/auth/refresh', undefined, { anonymous: true })
+}
 
-export async function login(email: string, password: string): Promise<LoginResult> {
-  await new Promise(resolve => setTimeout(resolve, MOCK_LATENCY_MS))
+/** Idempotent server-side. Revokes the session and clears the cookie. */
+export function logout(): Promise<void> {
+  return api.post<void>('/auth/logout', undefined, { anonymous: true })
+}
 
-  if (email !== DEV_CREDENTIALS.email || password !== DEV_CREDENTIALS.password) {
-    // Wording preserved verbatim from the prototype. Phase 6 removes the
-    // credentials from this string — echoing a password back is a real leak.
-    return { ok: false, error: `Invalid email or password. Try ${DEV_CREDENTIALS.email} / ${DEV_CREDENTIALS.password}` }
-  }
-
-  const session: Session = {
-    token: `mock.${btoa(email)}.${Date.now()}`,
-    user: { id: 'admin-1', email, role: 'admin' },
-    expiresAt: Date.now() + SESSION_TTL_MS,
-  }
-  return { ok: true, session }
+/** The signed-in admin and their resolved permissions. Requires a live token. */
+export function me(): Promise<AdminUser> {
+  return api.get<AdminUser>('/auth/me')
 }

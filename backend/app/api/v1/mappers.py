@@ -12,13 +12,32 @@ from app.models.job import Job
 from app.models.report import Report
 from app.schemas.admin import AdminDetail, AdminSessionDetail
 from app.schemas.common import Paginated
-from app.schemas.job import JobAdmin, JobDetail, JobSummary
+from app.schemas.job import JobAdmin, JobDetail, JobSummary, SalaryRead
 from app.schemas.rbac import RoleRead
 from app.schemas.report import ReportJobRef, ReportRead
 from app.schemas.taxonomy import CategoryRead, LocationRead, SourceRead
 from app.services.admin_management_service import AdminPage
 from app.services.job_service import JobPage, compute_badge
 from app.services.report_service import ReportPage
+
+
+def salary_read(job: Job) -> SalaryRead:
+    """Salary as the public API states it.
+
+    When the employer did not disclose a figure the bounds are withheld rather
+    than sent. The columns can still hold values — a scraper may have guessed,
+    or a range may have been entered before the listing was marked
+    undisclosed — and returning those would publish a number nobody agreed to
+    publish.
+    """
+    disclosed = job.salary_is_disclosed
+    return SalaryRead(
+        min=job.salary_min if disclosed else None,
+        max=job.salary_max if disclosed else None,
+        currency=job.salary_currency,
+        period=job.salary_period,
+        disclosed=disclosed,
+    )
 
 
 def job_summary(job: Job) -> JobSummary:
@@ -36,6 +55,7 @@ def job_summary(job: Job) -> JobSummary:
         experience_level=job.experience_level,
         experience_min_years=job.experience_min_years,
         experience_max_years=job.experience_max_years,
+        salary=salary_read(job),
         badge=compute_badge(job),
         featured=job.featured,
         verified=job.verified,

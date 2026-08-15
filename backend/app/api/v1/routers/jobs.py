@@ -115,6 +115,26 @@ async def list_jobs(
 
 
 @router.get(
+    "/jobs/suggest",
+    response_model=list[str],
+    summary="Title suggestions for the search box",
+)
+async def suggest(
+    search: SearchServiceDep,
+    q: Annotated[str, Query(min_length=2, max_length=120, description="Prefix typed so far")],
+    limit: Annotated[int, Query(ge=1, le=20)] = 8,
+) -> list[str]:
+    """Declared above `/jobs/{slug}` deliberately — routes match in order, and
+    the slug pattern would otherwise swallow this path.
+
+    Returns bare strings. A typeahead needs the text and nothing else, and
+    wrapping eight words in objects would triple the payload of a request that
+    fires on every keystroke.
+    """
+    return await search.suggest(q, limit=limit)
+
+
+@router.get(
     "/jobs/{slug}",
     response_model=JobDetail,
     summary="One listing, with related roles",

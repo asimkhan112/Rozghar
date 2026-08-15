@@ -8,8 +8,10 @@ a cache that degrades to a miss instead of an error.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+from xml.etree import ElementTree
 
 import pytest
 from fastapi.testclient import TestClient
@@ -318,3 +320,69 @@ def test_task_results_are_nested_not_splatted():
     result = asyncio.run(run_task("reserved_key_probe", returns_reserved_keys))
     assert result.ok, result.error
     assert result.details["created"] == 2
+
+
+# --- crawler endpoints ----------------------------------------------------
+
+
+def test_robots_blocks_crawling_outside_production(client):
+    """A staging environment that gets indexed competes with production for its
+    own keywords, and the duplicate is credited to whichever Google saw first.
+    """
+    r = client.get("/robots.txt")
+    assert r.status_code == 200
+    assert "text/plain" in r.headers["content-type"]
+    assert "Disallow: /" in r.text
+
+
+def test_robots_in_production_allows_crawling_but_not_admin_or_api():
+    from app.api.seo import robots
+
+    original = settings.environment
+    settings.environment = "production"
+    try:
+        body = asyncio.run(robots()).body.decode()
+    finally:
+        settings.environment = original
+
+    assert "Allow: /" in body
+    assert "Disallow: /admin/" in body
+    assert "Disallow: /api/" in body
+    assert "Sitemap:" in body
+
+
+def test_sitemap_is_valid_xml_and_lists_the_public_routes(client):
+    r = client.get("/sitemap.xml")
+    assert r.status_code == 200
+    assert "application/xml" in r.headers["content-type"]
+
+    root = ElementTree.fromstring(r.text)
+    namespace = {"s": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+    locations = [node.text for node in root.findall(".//s:loc", namespace)]
+
+    assert locations, "the sitemap must not be empty"
+    for path in ("/", "/jobs", "/categories"):
+        assert any(loc.endswith(path) for loc in locations), f"{path} is missing"
+    # Absolute URLs only — a relative <loc> is invalid and silently ignored.
+    assert all(loc.startswith("http") for loc in locations)
+
+
+def test_sitemap_uses_the_configured_site_url_not_the_request_host(client):
+    """A sitemap fetched through a proxy would otherwise advertise the proxy's
+    internal hostname to Google.
+    """
+    original = settings.site_url
+    settings.site_url = "https://rozgar.example"
+    try:
+        body = client.get("/sitemap.xml").text
+    finally:
+        settings.site_url = original
+
+    assert "https://rozgar.example/jobs" in body
+    assert "testserver" not in body
+
+
+def test_sitemap_excludes_admin_and_api_paths(client):
+    body = client.get("/sitemap.xml").text
+    assert "/admin" not in body
+    assert "/api/v1" not in body

@@ -11,3 +11,7 @@ logs/
 *.log
 .claude-replay.*
 .tmp-*
+
+# Rendered appearance baselines. Regenerate with `pnpm snapshot <dir>` —
+# 57 files of serialised markup are a diff nobody can read in review.
+.snapshots/
