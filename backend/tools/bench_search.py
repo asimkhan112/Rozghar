@@ -31,25 +31,101 @@ BENCH_MARKER = "BENCHCO"
 # match 16% of the catalogue — a benchmark of a situation that does not occur.
 SENIORITY = ["Junior", "Associate", "Mid-level", "Senior", "Staff", "Principal", "Lead", "Head of"]
 DISCIPLINE = [
-    "Frontend", "Backend", "Fullstack", "Mobile", "Platform", "Data", "Machine Learning",
-    "Security", "Cloud", "Embedded", "Site Reliability", "Quality", "Solutions",
-    "Product", "Growth", "Content", "Brand", "Field", "Technical", "Business",
+    "Frontend",
+    "Backend",
+    "Fullstack",
+    "Mobile",
+    "Platform",
+    "Data",
+    "Machine Learning",
+    "Security",
+    "Cloud",
+    "Embedded",
+    "Site Reliability",
+    "Quality",
+    "Solutions",
+    "Product",
+    "Growth",
+    "Content",
+    "Brand",
+    "Field",
+    "Technical",
+    "Business",
 ]
 ROLE = [
-    "Engineer", "Developer", "Analyst", "Designer", "Manager", "Architect",
-    "Specialist", "Consultant", "Partner", "Lead", "Officer", "Administrator",
+    "Engineer",
+    "Developer",
+    "Analyst",
+    "Designer",
+    "Manager",
+    "Architect",
+    "Specialist",
+    "Consultant",
+    "Partner",
+    "Lead",
+    "Officer",
+    "Administrator",
 ]
 SKILL_POOL = [
-    "React", "Vue", "Angular", "Svelte", "TypeScript", "JavaScript", "Python", "Django",
-    "FastAPI", "Flask", "Java", "Spring", "Kotlin", "Swift", "Go", "Rust", "Ruby",
-    "PostgreSQL", "MySQL", "MongoDB", "Redis", "Elasticsearch", "Kafka", "RabbitMQ",
-    "Kubernetes", "Docker", "Terraform", "Ansible", "AWS", "GCP", "Azure",
-    "Figma", "Sketch", "Illustrator", "SQL", "Power BI", "Tableau", "Excel", "SPSS",
-    "SEO", "SEM", "HubSpot", "Salesforce", "Jira", "Confluence", "GraphQL", "gRPC",
+    "React",
+    "Vue",
+    "Angular",
+    "Svelte",
+    "TypeScript",
+    "JavaScript",
+    "Python",
+    "Django",
+    "FastAPI",
+    "Flask",
+    "Java",
+    "Spring",
+    "Kotlin",
+    "Swift",
+    "Go",
+    "Rust",
+    "Ruby",
+    "PostgreSQL",
+    "MySQL",
+    "MongoDB",
+    "Redis",
+    "Elasticsearch",
+    "Kafka",
+    "RabbitMQ",
+    "Kubernetes",
+    "Docker",
+    "Terraform",
+    "Ansible",
+    "AWS",
+    "GCP",
+    "Azure",
+    "Figma",
+    "Sketch",
+    "Illustrator",
+    "SQL",
+    "Power BI",
+    "Tableau",
+    "Excel",
+    "SPSS",
+    "SEO",
+    "SEM",
+    "HubSpot",
+    "Salesforce",
+    "Jira",
+    "Confluence",
+    "GraphQL",
+    "gRPC",
 ]
 CITIES = [
-    "Lahore", "Karachi", "Islamabad", "Rawalpindi", "Faisalabad",
-    "Multan", "Peshawar", "Quetta", "Sialkot", "Hyderabad",
+    "Lahore",
+    "Karachi",
+    "Islamabad",
+    "Rawalpindi",
+    "Faisalabad",
+    "Multan",
+    "Peshawar",
+    "Quetta",
+    "Sialkot",
+    "Hyderabad",
 ]
 
 QUERIES = [
@@ -183,9 +259,7 @@ async def measure(runs: int) -> None:
             )
         ).scalar_one()
         size = (
-            await s.execute(
-                text("SELECT pg_size_pretty(pg_total_relation_size('jobs'))")
-            )
+            await s.execute(text("SELECT pg_size_pretty(pg_total_relation_size('jobs'))"))
         ).scalar_one()
         index_size = (
             await s.execute(
@@ -209,9 +283,7 @@ async def measure(runs: int) -> None:
             await service.search(query, JobFilters(), page=1, per_page=20, log=False)  # warm
             for _ in range(runs):
                 started = time.perf_counter()
-                outcome = await service.search(
-                    query, JobFilters(), page=1, per_page=20, log=False
-                )
+                outcome = await service.search(query, JobFilters(), page=1, per_page=20, log=False)
                 timings.append((time.perf_counter() - started) * 1000)
                 strategy = outcome.strategy.value
         p50 = statistics.median(timings)
@@ -262,6 +334,13 @@ async def cleanup() -> None:
 
 
 async def main(args: argparse.Namespace) -> None:
+    """Seed, measure, then always remove the synthetic rows.
+
+    The benchmark shares a database with the test suite, and 100k synthetic
+    listings drown out the handful of fixtures the tests assert on. Leaving
+    them behind turns every subsequent test run into a puzzle, so cleanup is in
+    a `finally` rather than left to the operator remembering.
+    """
     try:
         if args.cleanup:
             await cleanup()
@@ -270,6 +349,9 @@ async def main(args: argparse.Namespace) -> None:
         await measure(args.runs)
         await explain()
     finally:
+        if not args.cleanup and not args.keep:
+            print()
+            await cleanup()
         await dispose_engine()
 
 
@@ -277,5 +359,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Search benchmark")
     parser.add_argument("--rows", type=int, default=100_000)
     parser.add_argument("--runs", type=int, default=20)
-    parser.add_argument("--cleanup", action="store_true")
+    parser.add_argument("--cleanup", action="store_true", help="only remove synthetic rows")
+    parser.add_argument(
+        "--keep",
+        action="store_true",
+        help="leave the synthetic rows in place (will break the test suite)",
+    )
     asyncio.run(main(parser.parse_args()))

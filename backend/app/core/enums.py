@@ -59,16 +59,16 @@ class SourceType(StrEnum):
 
 class ReportReason(StrEnum):
     BROKEN_LINK = "broken_link"
-    SPAM = "spam"
+    SUSPICIOUS = "suspicious"
     EXPIRED = "expired"
-    WRONG_INFORMATION = "wrong_information"
+    INCORRECT_INFORMATION = "incorrect_information"
     DUPLICATE = "duplicate"
     OTHER = "other"
 
 
 class ReportStatus(StrEnum):
     OPEN = "open"
-    IN_REVIEW = "in_review"
+    UNDER_REVIEW = "under_review"
     RESOLVED = "resolved"
     DISMISSED = "dismissed"
 

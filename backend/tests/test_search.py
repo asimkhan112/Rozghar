@@ -80,9 +80,11 @@ async def _seed() -> dict:
         ).scalar_one()
         s.add(
             Admin(
-                email=EMAIL, full_name="M4 Admin",
+                email=EMAIL,
+                full_name="M4 Admin",
                 password_hash=hash_password(PASSWORD),
-                role_id=role.id, is_active=True,
+                role_id=role.id,
+                is_active=True,
             )
         )
 
@@ -104,8 +106,11 @@ async def _seed() -> dict:
             ).scalar_one_or_none()
             if loc is None:
                 loc = Location(
-                    city=city, country="PK", slug=slug,
-                    display_name=display, is_remote=remote,
+                    city=city,
+                    country="PK",
+                    slug=slug,
+                    display_name=display,
+                    is_remote=remote,
                 )
                 s.add(loc)
             locations[slug] = loc
@@ -214,7 +219,7 @@ def test_stemming_absorbs_the_common_typos(client):
 
 
 def test_unstemmable_typo_falls_through_to_the_trigram_tier(client):
-    """"techation" for "TechNation" — no stemmer recovers that.
+    """ "techation" for "TechNation" — no stemmer recovers that.
 
     Its tsquery ('techat') matches nothing, and being a single token the
     broadened tier is the identical query, so this reaches trigram similarity.
@@ -227,7 +232,7 @@ def test_unstemmable_typo_falls_through_to_the_trigram_tier(client):
 
 
 def test_multi_term_query_broadens_when_one_term_is_absent(client):
-    """"python architect" — nobody is hiring an architect, but the Python job
+    """ "python architect" — nobody is hiring an architect, but the Python job
     is still the right answer."""
     body = search(client, "python architect")
     assert body["total"] > 0
@@ -254,7 +259,7 @@ def test_empty_query_is_a_plain_listing_not_a_search(client):
 
 
 def test_market_synonyms_are_expanded(client):
-    """"khi" is how people actually type Karachi."""
+    """ "khi" is how people actually type Karachi."""
     body = search(client, "khi")
     assert "Data Analyst" in titles(body) or body["search"]["degraded"]
 
@@ -272,9 +277,9 @@ def test_swe_expands_to_software_engineer(client):
 
 def test_featured_outranks_an_equal_match(client, world):
     """The boost is bounded, so it reorders equals — it cannot invent a match."""
-    token = client.post(
-        "/api/v1/auth/login", json={"email": EMAIL, "password": PASSWORD}
-    ).json()["access_token"]
+    token = client.post("/api/v1/auth/login", json={"email": EMAIL, "password": PASSWORD}).json()[
+        "access_token"
+    ]
     headers = {"Authorization": f"Bearer {token}"}
 
     body = {
@@ -291,9 +296,7 @@ def test_featured_outranks_an_equal_match(client, world):
     }
     created = client.post(ADMIN_JOBS, json=body, headers=headers).json()
     client.post(f"{ADMIN_JOBS}/{created['id']}/publish", headers=headers)
-    client.post(
-        f"{ADMIN_JOBS}/{created['id']}/feature", json={"featured": True}, headers=headers
-    )
+    client.post(f"{ADMIN_JOBS}/{created['id']}/feature", json={"featured": True}, headers=headers)
 
     results = search(client, "data analyst")["items"]
     companies = [j["company_name"] for j in results]
@@ -372,6 +375,7 @@ def test_renaming_a_location_refreshes_dependent_listings(client, world):
     Without it, a renamed city leaves every existing listing indexed under the
     old name — silently wrong search results for weeks.
     """
+
     async def rename_and_read() -> str:
         async with SessionFactory() as s:
             await s.execute(

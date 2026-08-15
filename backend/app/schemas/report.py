@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import EmailStr, Field, model_validator
 
-from app.core.enums import ReportReason, ReportStatus
+from app.core.enums import TERMINAL_REPORT_STATUSES, ReportReason, ReportStatus
 from app.schemas.common import ORMModel, StrictModel
 
 
@@ -35,18 +35,33 @@ class ReportCreate(StrictModel):
 
 
 class ReportUpdate(StrictModel):
-    """Moderation action."""
+    """Moderation action.
 
-    status: ReportStatus
+    Both fields are optional so the two real actions are both expressible: a
+    transition (with a note, when the destination is terminal) and a correction
+    to an existing note. An empty body is rejected rather than treated as a
+    no-op, because it is always a client bug.
+    """
+
+    status: ReportStatus | None = None
     resolution_note: str | None = Field(default=None, max_length=500)
 
     @model_validator(mode="after")
-    def terminal_requires_note(self) -> ReportUpdate:
-        if (
-            self.status in {ReportStatus.RESOLVED, ReportStatus.DISMISSED}
-            and not (self.resolution_note or "").strip()
-        ):
+    def coherent_action(self) -> ReportUpdate:
+        if self.status is None and self.resolution_note is None:
+            raise ValueError("supply a status, a resolution_note, or both")
+
+        note = (self.resolution_note or "").strip()
+        if self.status in TERMINAL_REPORT_STATUSES and not note:
             raise ValueError("resolution_note is required when resolving or dismissing")
+
+        # Reopening clears the resolution fields, so a note sent alongside a
+        # non-terminal status would be written and immediately discarded.
+        # Failing is honest; silently dropping it is not.
+        if self.status is not None and self.status not in TERMINAL_REPORT_STATUSES and note:
+            raise ValueError(
+                "resolution_note cannot be set when moving a report out of a resolved state"
+            )
         return self
 
 
@@ -61,6 +76,13 @@ class ReportJobRef(ORMModel):
 
 
 class ReportCreated(ORMModel):
+    """Deliberately minimal.
+
+    The submission endpoint is anonymous and unauthenticated, so its response
+    is kept to an acknowledgement. Echoing the stored row back would make it a
+    read endpoint for anyone who can guess an identifier.
+    """
+
     id: UUID
     status: ReportStatus
 
@@ -81,5 +103,5 @@ class ReportRead(ORMModel):
 
 class ReportStats(ORMModel):
     open_count: int
-    in_review_count: int
+    under_review_count: int
     by_reason: dict[str, int]

@@ -23,8 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.job import Job
 from app.repositories.job_repo import JobFilters
-from app.repositories.search_repo import SearchRepository
 from app.repositories.search_log_repo import SearchLogRepository
+from app.repositories.search_repo import SearchRepository
 
 logger = logging.getLogger(__name__)
 
@@ -126,9 +126,13 @@ class SearchService:
 
         if not query:
             outcome = SearchOutcome(
-                items=[], scores=[], total=0,
-                strategy=SearchStrategy.NONE, degraded=False,
-                response_ms=0, normalised_query="",
+                items=[],
+                scores=[],
+                total=0,
+                strategy=SearchStrategy.NONE,
+                degraded=False,
+                response_ms=0,
+                normalised_query="",
             )
             return outcome
 
@@ -138,9 +142,7 @@ class SearchService:
         # Deliberately *not* synonym-expanded. Expansion adds terms, and with
         # AND semantics every added term is another requirement — "frontend"
         # expanding to include "front-end" made an exact title match fail.
-        results, total = await self.repo.search_exact(
-            query, filters, limit=per_page, offset=offset
-        )
+        results, total = await self.repo.search_exact(query, filters, limit=per_page, offset=offset)
         strategy = SearchStrategy.EXACT
 
         # --- tier 2: any term, synonyms included --------------------------

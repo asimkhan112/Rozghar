@@ -56,6 +56,14 @@ class Settings(BaseSettings):
     max_failed_login_attempts: int = 5
     account_lockout_minutes: int = 15
 
+    # --- public reports --------------------------------------------------
+    #: Submissions accepted from one hashed client address per window. The
+    #: limit is deliberately generous: a reader who spots five dead links in a
+    #: browsing session is the most valuable contributor the site has, not an
+    #: attacker.
+    report_rate_limit_per_window: int = 10
+    report_rate_limit_window_minutes: int = 60
+
     # --- startup ---------------------------------------------------------
     #: When true, a mismatch between the Permission enum and the permissions
     #: table aborts startup. Disabled only for the migration that seeds them.

@@ -8,10 +8,13 @@ appears, and out of the schemas so Pydantic models stay free of domain logic.
 from __future__ import annotations
 
 from app.models.job import Job
+from app.models.report import Report
 from app.schemas.common import Paginated
 from app.schemas.job import JobAdmin, JobDetail, JobSummary
+from app.schemas.report import ReportJobRef, ReportRead
 from app.schemas.taxonomy import CategoryRead, LocationRead, SourceRead
 from app.services.job_service import JobPage, compute_badge
+from app.services.report_service import ReportPage
 
 
 def job_summary(job: Job) -> JobSummary:
@@ -74,6 +77,38 @@ def paginate_jobs(page: JobPage, *, admin: bool = False) -> Paginated:
     projector = job_admin if admin else job_summary
     return Paginated(
         items=[projector(j) for j in page.items],
+        page=page.page,
+        per_page=page.per_page,
+        total=page.total,
+        total_pages=page.total_pages,
+        has_more=page.has_more,
+    )
+
+
+def report_read(report: Report) -> ReportRead:
+    """Moderation row.
+
+    `reporter_ip_hash` and `session_id` are on the model and never appear here.
+    Both are abuse-control identifiers, not case detail, and a moderator has no
+    reason to see either — which is the whole argument for building the
+    response explicitly rather than validating the ORM object wholesale.
+    """
+    return ReportRead(
+        id=report.id,
+        reason=report.reason,
+        comment=report.comment,
+        status=report.status,
+        resolution_note=report.resolution_note,
+        resolved_by=report.resolved_by,
+        resolved_at=report.resolved_at,
+        created_at=report.created_at,
+        job=ReportJobRef.model_validate(report.job),
+    )
+
+
+def paginate_reports(page: ReportPage) -> Paginated[ReportRead]:
+    return Paginated[ReportRead](
+        items=[report_read(r) for r in page.items],
         page=page.page,
         per_page=page.per_page,
         total=page.total,

@@ -1,7 +1,8 @@
 """Public job listings.
 
-Anonymous, cacheable, and restricted to published listings. Search is
-deliberately absent — filters only until Milestone 5 adds the tsvector.
+Anonymous, cacheable, and restricted to published listings. Passing `q`
+switches the ordering from the requested sort to relevance, because the two
+cannot both be honoured and relevance is what the query asked for.
 """
 
 from __future__ import annotations
@@ -49,7 +50,9 @@ async def list_jobs(
     service: JobServiceDep,
     search: SearchServiceDep,
     q: Annotated[str | None, Query(max_length=120, description="Full-text query")] = None,
-    session_id: Annotated[UUID | None, Query(description="Anonymous session, for search telemetry")] = None,
+    session_id: Annotated[
+        UUID | None, Query(description="Anonymous session, for search telemetry")
+    ] = None,
     category: Annotated[str | None, Query(max_length=160)] = None,
     location: Annotated[str | None, Query(max_length=160)] = None,
     work_type: WorkType | None = None,

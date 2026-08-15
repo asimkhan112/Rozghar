@@ -11,8 +11,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.api.v1.routers import admin_jobs as admin_jobs_router
+from app.api.v1.routers import admin_reports as admin_reports_router
 from app.api.v1.routers import auth as auth_router
 from app.api.v1.routers import jobs as jobs_router
+from app.api.v1.routers import reports as reports_router
 from app.api.v1.routers import taxonomy as taxonomy_router
 from app.core.config import settings
 from app.core.exceptions import DomainError
@@ -78,7 +80,7 @@ def _problem(
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
-        version="0.3.0",
+        version="0.5.0",
         docs_url="/docs" if not settings.is_production else None,
         redoc_url=None,
         openapi_url="/openapi.json" if not settings.is_production else None,
@@ -128,11 +130,13 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router.router, prefix=settings.api_v1_prefix)
     app.include_router(jobs_router.router, prefix=settings.api_v1_prefix)
+    app.include_router(reports_router.router, prefix=settings.api_v1_prefix)
     app.include_router(taxonomy_router.public, prefix=settings.api_v1_prefix)
     app.include_router(admin_jobs_router.router, prefix=settings.api_v1_prefix)
+    app.include_router(admin_reports_router.router, prefix=settings.api_v1_prefix)
     app.include_router(taxonomy_router.admin, prefix=settings.api_v1_prefix)
 
-    # Search lands in Milestone 5; reports in 6; analytics in 7.
+    # Analytics lands in Milestone 7.
     return app
 
 

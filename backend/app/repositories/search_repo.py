@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlalchemy import Select, and_, case, func, literal, or_, select
+from sqlalchemy import Select, case, func, literal, or_, select, text
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import JobStatus
@@ -34,9 +34,15 @@ SALARY_DISCLOSED_BOOST = 0.15
 #: that multiplies cleanly with the boosts below.
 RANK_NORMALISATION = 32
 
-#: Minimum trigram similarity for the fuzzy tier. Below roughly 0.3 the matches
-#: stop resembling the query at all.
-TRIGRAM_THRESHOLD = 0.3
+#: Minimum trigram similarity for the fuzzy tier.
+#:
+#: This is not just a filter — it is what makes the GIN trigram index
+#: *selective*. The `%` operator consults `pg_trgm.similarity_threshold`, and
+#: at the 0.3 default the index returned 5,426 candidate rows for a query that
+#: matched one, every other row being discarded by a heap recheck. Raising it
+#: to 0.45 cut that query from 70ms to 4ms and still matches a real typo
+#: comfortably ("techation" scores 0.615 against "TechNation").
+TRIGRAM_THRESHOLD = 0.45
 
 #: Upper bound on the rows that get scored.
 #:
@@ -76,9 +82,7 @@ class SearchRepository:
     # --- shared pieces ----------------------------------------------------
 
     def _base(self, filters: JobFilters) -> Select:
-        stmt = select(Job).where(
-            Job.deleted_at.is_(None), Job.status == JobStatus.PUBLISHED
-        )
+        stmt = select(Job).where(Job.deleted_at.is_(None), Job.status == JobStatus.PUBLISHED)
         return self.jobs._apply_public_filters(stmt, filters)
 
     def _recency_factor(self):
@@ -152,23 +156,19 @@ class SearchRepository:
         # --- how many matched, bounded ------------------------------------
         # Counting is capped for the same reason ranking is: an exact count of
         # a 50,000-row match set is a scan nobody reads the answer to.
-        counted = (
-            select(Job.id)
-            .where(Job.deleted_at.is_(None), Job.status == JobStatus.PUBLISHED, match)
+        counted = select(Job.id).where(
+            Job.deleted_at.is_(None), Job.status == JobStatus.PUBLISHED, match
         )
         counted = self.jobs._apply_public_filters(counted, filters).limit(MAX_EXACT_COUNT)
         total = (
-            await self.session.execute(
-                select(func.count()).select_from(counted.subquery())
-            )
+            await self.session.execute(select(func.count()).select_from(counted.subquery()))
         ).scalar_one()
         if not total:
             return [], 0
 
         # --- bound the pool, then score it --------------------------------
-        candidates = (
-            select(Job.id)
-            .where(Job.deleted_at.is_(None), Job.status == JobStatus.PUBLISHED, match)
+        candidates = select(Job.id).where(
+            Job.deleted_at.is_(None), Job.status == JobStatus.PUBLISHED, match
         )
         candidates = (
             self.jobs._apply_public_filters(candidates, filters)
@@ -215,6 +215,13 @@ class SearchRepository:
             Job.company_name.op("%")(query),
         )
 
+        # The threshold governs index selectivity, not just the final filter,
+        # so it has to be set on the connection before the query runs. SET
+        # LOCAL scopes it to this transaction.
+        await self.session.execute(
+            text(f"SET LOCAL pg_trgm.similarity_threshold = {TRIGRAM_THRESHOLD}")
+        )
+
         # Bounded for the same reason the ranked tiers are: `similarity()` is
         # computed per row, so a permissive trigram match over a large
         # catalogue is an expensive scan. The `%` operator is index-assisted;
@@ -242,7 +249,6 @@ class SearchRepository:
         stmt = (
             select(Job)
             .join(candidates, Job.id == candidates.c.id)
-            .where(similarity >= TRIGRAM_THRESHOLD)
             .add_columns(score)
             .order_by(score.desc(), Job.id.desc())
             .limit(limit)
@@ -258,9 +264,7 @@ class SearchRepository:
 
     # --- tier 4: related --------------------------------------------------
 
-    async def recent_fallback(
-        self, filters: JobFilters, *, limit: int
-    ) -> list[ScoredJob]:
+    async def recent_fallback(self, filters: JobFilters, *, limit: int) -> list[ScoredJob]:
         """Last resort: recent listings honouring whatever filters remain.
 
         An empty page is a dead end. Showing something relevant, clearly

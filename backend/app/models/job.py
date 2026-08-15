@@ -10,12 +10,12 @@ from uuid import UUID
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Computed,
     Date,
     DateTime,
     ForeignKey,
     Index,
     Integer,
-    Computed,
     Numeric,
     SmallInteger,
     String,

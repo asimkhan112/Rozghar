@@ -59,9 +59,7 @@ class SearchLogRepository:
             },
         )
 
-    async def zero_result_queries(
-        self, *, since: date, limit: int = 50
-    ) -> list[tuple[str, int]]:
+    async def zero_result_queries(self, *, since: date, limit: int = 50) -> list[tuple[str, int]]:
         """The most actionable search report: demand the catalogue cannot meet.
 
         Reads the partial index on `occurred_at WHERE result_count = 0`.
