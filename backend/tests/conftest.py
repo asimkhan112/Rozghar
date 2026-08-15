@@ -11,6 +11,22 @@ import os
 # loops raises "Event loop is closed". Pooling is a production concern anyway.
 os.environ.setdefault("ENVIRONMENT", "test")
 
+# The scheduler starts in the application lifespan, and `TestClient` runs the
+# lifespan. Left enabled, every test that constructs a client would kick off
+# background work against the same database the assertions read from.
+os.environ.setdefault("SCHEDULER_ENABLED", "false")
+
+# The suite logs in far more than ten times in five minutes, and hammers the
+# admin API from a single address — both deliberately. Rate limiting on would
+# make the tests assert on the limiter rather than on the behaviour under it.
+os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
+
+# Caching off for the same reason in reverse: almost every test writes data and
+# then immediately asserts on a read of it. A ten-minute dashboard cache would
+# serve the previous test's numbers. The cache itself is covered directly in
+# `test_ops.py` and end to end by hand.
+os.environ.setdefault("CACHE_ENABLED", "false")
+
 
 import pytest
 

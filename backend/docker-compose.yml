@@ -36,3 +36,8 @@ services:
 
 volumes:
   rozgar-pgdata:
+    # Pinned to its real name. The project name was added *after* this volume
+    # was first created, so compose derived it as `backend_rozgar-pgdata` and
+    # would otherwise now look for `rozgar_rozgar-pgdata` — an empty volume,
+    # and a database that appears to have lost every migration.
+    name: backend_rozgar-pgdata

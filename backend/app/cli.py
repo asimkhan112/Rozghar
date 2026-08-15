@@ -5,6 +5,13 @@ never will be. The first super admin has to come from somewhere, and a command
 run by whoever controls the server is the right somewhere.
 
     python -m app.cli bootstrap-admin --email you@rozgar.pk --name "Your Name"
+
+`run-task` runs any scheduled task immediately. It is the same code path the
+scheduler uses, advisory lock included, so running one by hand while the
+scheduler is live is safe — one of the two will simply skip.
+
+    python -m app.cli run-task ensure_partitions
+    python -m app.cli run-task --list
 """
 
 from __future__ import annotations
@@ -76,6 +83,27 @@ async def bootstrap_admin(email: str, full_name: str, password: str | None) -> i
     return 0
 
 
+async def run_scheduled_task(name: str) -> int:
+    from app.tasks.scheduled_tasks import TASKS, run_task
+
+    if name not in TASKS:
+        print(f"error: unknown task {name!r}", file=sys.stderr)
+        print(f"available: {', '.join(sorted(TASKS))}", file=sys.stderr)
+        return 2
+
+    result = await run_task(name, TASKS[name])
+    if not result.ran:
+        print(f"{name}: skipped — another instance holds the lock")
+        return 0
+    if result.error:
+        print(f"{name}: failed after {result.duration_ms}ms — {result.error}", file=sys.stderr)
+        return 1
+    print(f"{name}: completed in {result.duration_ms}ms")
+    for key, value in result.details.items():
+        print(f"  {key}: {value}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="app.cli", description="Rozgar backend operations")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -93,7 +121,20 @@ def main(argv: list[str] | None = None) -> int:
         help="generate a strong password and print it once",
     )
 
+    task = sub.add_parser("run-task", help="run a scheduled task immediately")
+    task.add_argument("name", nargs="?", help="task name")
+    task.add_argument("--list", action="store_true", help="list the available tasks")
+
     args = parser.parse_args(argv)
+
+    if args.command == "run-task":
+        from app.tasks.scheduled_tasks import TASKS
+
+        if args.list or not args.name:
+            for name in sorted(TASKS):
+                print(name)
+            return 0
+        return asyncio.run(_run(run_scheduled_task(args.name)))
 
     if args.command == "bootstrap-admin":
         password = args.password

@@ -143,4 +143,45 @@ class AdminSession(UUIDPkMixin, Base):
         return self.revoked_at is None
 
 
-__all__ = ["Admin", "AdminSession"]
+class AdminPasswordReset(UUIDPkMixin, Base):
+    """A single-use password reset token.
+
+    Admin-initiated rather than email-initiated: there is no mail
+    infrastructure, and inventing one here would put it in the wrong place. An
+    admin with ADMIN_MANAGE issues a reset and the token is returned **once**,
+    for out-of-band delivery.
+
+    Only the hash is stored, exactly as with refresh tokens — a database leak
+    must not hand over the ability to take over every account. `used_at` rather
+    than deletion so a replay is distinguishable from an unknown token, which
+    is the difference between "expired link" and "someone is trying tokens".
+    """
+
+    __tablename__ = "admin_password_resets"
+
+    admin_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("admins.id", ondelete="CASCADE"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+
+    #: Who issued it. SET NULL so the trail outlives the issuing account.
+    issued_by: Mapped[UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("admins.id", ondelete="SET NULL"), nullable=True
+    )
+    issued_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("expires_at > issued_at", name="expiry_after_issue"),
+        Index("ix_admin_password_resets_admin_id", "admin_id"),
+        Index("ix_admin_password_resets_expires_at", "expires_at"),
+    )
+
+    def is_usable(self, now: datetime) -> bool:
+        return self.used_at is None and self.expires_at > now
+
+
+__all__ = ["Admin", "AdminPasswordReset", "AdminSession"]

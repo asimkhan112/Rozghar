@@ -13,13 +13,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query
 
-from app.api.v1.deps import DbSession
+from app.api.v1.deps import CacheDep, DbSession
 from app.api.v1.mappers import job_detail, job_summary, paginate_jobs
 from app.core.enums import EmploymentType, ExperienceLevel, WorkType
 from app.repositories.job_repo import PUBLIC_SORTS, JobFilters
 from app.schemas.common import Paginated, SearchMeta
 from app.schemas.job import JobDetail, JobSummary
 from app.services.job_service import JobService
+from app.services.metrics_service import MetricsService
 from app.services.search_service import SearchService
 
 router = APIRouter(tags=["jobs"])
@@ -34,8 +35,8 @@ def job_service(session: DbSession) -> JobService:
 JobServiceDep = Annotated[JobService, Depends(job_service)]
 
 
-def search_service(session: DbSession) -> SearchService:
-    return SearchService(session)
+def search_service(session: DbSession, cache: CacheDep) -> SearchService:
+    return SearchService(session, cache)
 
 
 SearchServiceDep = Annotated[SearchService, Depends(search_service)]
@@ -87,6 +88,7 @@ async def list_jobs(
             q, filters, page=page, per_page=per_page, session_id=session_id
         )
         await search.session.commit()  # persist the search log
+        MetricsService.observe_search(outcome.strategy.value)
         total_pages = (outcome.total + per_page - 1) // per_page if per_page else 0
         return Paginated[JobSummary](
             items=[job_summary(j) for j in outcome.items],

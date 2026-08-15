@@ -49,10 +49,14 @@ class AnalyticsRange(ORMModel):
 class AnalyticsTotals(ORMModel):
     job_views: int
     apply_clicks: int
+    shares: int
+    source_clicks: int
     saves: int
+    reports: int
+    #: From `search_logs`, not from the rollups — that table knows result
+    #: counts and latency, which no event row does.
     searches: int
     zero_result_searches: int
-    reports: int
 
 
 class AnalyticsRates(ORMModel):
@@ -74,6 +78,7 @@ class TopJob(ORMModel):
     job_id: UUID
     slug: str
     title: str
+    company_name: str
     views: int
     apply_clicks: int
     ctr: float
@@ -86,10 +91,18 @@ class TopQuery(ORMModel):
 
 
 class SourcePerformance(ORMModel):
-    source: str
+    source_id: UUID
+    name: str
+    slug: str
     jobs: int
+    views: int
     apply_clicks: int
+    source_clicks: int
+    reports: int
     ctr: float
+    #: Applies per listing published. A feed with ten thousand listings and no
+    #: applies looks healthy on totals and terrible here, which is the point.
+    apply_rate_per_job: float
     report_rate: float
 
 
@@ -100,4 +113,31 @@ class AnalyticsOverview(ORMModel):
     series: list[SeriesPoint] = Field(default_factory=list)
     top_jobs: list[TopJob] = Field(default_factory=list)
     top_queries: list[TopQuery] = Field(default_factory=list)
-    by_source: list[SourcePerformance] = Field(default_factory=list)
+
+
+class ZeroResultQuery(ORMModel):
+    query: str
+    count: int
+
+
+class SearchAnalytics(ORMModel):
+    range: AnalyticsRange
+    total_searches: int
+    zero_result_searches: int
+    zero_result_rate: float
+    latency_p50_ms: float
+    latency_p95_ms: float
+    top_queries: list[TopQuery] = Field(default_factory=list)
+    zero_result_queries: list[ZeroResultQuery] = Field(default_factory=list)
+
+
+class IngestAccepted(ORMModel):
+    """Counts rather than an empty 202.
+
+    A client that is silently having every event rejected — a stale build
+    sending a retired event name, a clock that is days out — otherwise has no
+    way to find out.
+    """
+
+    accepted: int
+    rejected: int

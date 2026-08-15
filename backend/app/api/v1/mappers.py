@@ -7,12 +7,16 @@ appears, and out of the schemas so Pydantic models stay free of domain logic.
 
 from __future__ import annotations
 
+from app.models.admin import Admin, AdminSession
 from app.models.job import Job
 from app.models.report import Report
+from app.schemas.admin import AdminDetail, AdminSessionDetail
 from app.schemas.common import Paginated
 from app.schemas.job import JobAdmin, JobDetail, JobSummary
+from app.schemas.rbac import RoleRead
 from app.schemas.report import ReportJobRef, ReportRead
 from app.schemas.taxonomy import CategoryRead, LocationRead, SourceRead
+from app.services.admin_management_service import AdminPage
 from app.services.job_service import JobPage, compute_badge
 from app.services.report_service import ReportPage
 
@@ -109,6 +113,52 @@ def report_read(report: Report) -> ReportRead:
 def paginate_reports(page: ReportPage) -> Paginated[ReportRead]:
     return Paginated[ReportRead](
         items=[report_read(r) for r in page.items],
+        page=page.page,
+        per_page=page.per_page,
+        total=page.total,
+        total_pages=page.total_pages,
+        has_more=page.has_more,
+    )
+
+
+def admin_detail(admin: Admin) -> AdminDetail:
+    """Includes the resolved permission keys.
+
+    The client gates its UI on capabilities rather than on a role name, so a
+    fifth role needs no frontend change.
+    """
+    return AdminDetail(
+        id=admin.id,
+        email=admin.email,
+        full_name=admin.full_name,
+        is_active=admin.is_active,
+        last_login_at=admin.last_login_at,
+        created_at=admin.created_at,
+        role=RoleRead.model_validate(admin.role),
+        permissions=sorted(p.key for p in admin.role.permissions),
+    )
+
+
+def admin_session_detail(
+    session_row: AdminSession, email: str, full_name: str
+) -> AdminSessionDetail:
+    """`token_hash`, `family_id` and `ip_hash` are on the model and never here."""
+    return AdminSessionDetail(
+        id=session_row.id,
+        issued_at=session_row.issued_at,
+        expires_at=session_row.expires_at,
+        revoked_at=session_row.revoked_at,
+        revoked_reason=session_row.revoked_reason,
+        user_agent=session_row.user_agent,
+        admin_id=session_row.admin_id,
+        admin_email=email,
+        admin_name=full_name,
+    )
+
+
+def paginate_admins(page: AdminPage) -> Paginated[AdminDetail]:
+    return Paginated[AdminDetail](
+        items=[admin_detail(a) for a in page.items],
         page=page.page,
         per_page=page.per_page,
         total=page.total,

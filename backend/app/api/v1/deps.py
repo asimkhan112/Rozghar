@@ -18,11 +18,13 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import InvalidToken, PermissionDenied
 from app.core.permissions import Permission
 from app.core.security import decode_access_token
 from app.db.database import get_db
 from app.services.auth_service import AuthService, Principal
+from app.services.cache_service import CacheService
 from app.services.permission_service import PermissionService
 
 #: `auto_error=False` so a missing header raises our own domain error and
@@ -36,6 +38,17 @@ DbSession = Annotated[AsyncSession, Depends(get_db)]
 async def get_redis(request: Request) -> aioredis.Redis | None:
     """Shared Redis client created once in the application lifespan."""
     return getattr(request.app.state, "redis", None)
+
+
+async def get_cache(
+    redis: Annotated[aioredis.Redis | None, Depends(get_redis)],
+) -> CacheService:
+    """Always returns a service. When Redis is absent — or caching is switched
+    off — every call is a miss, so no call site needs a null branch."""
+    return CacheService(redis if settings.cache_enabled else None)
+
+
+CacheDep = Annotated[CacheService, Depends(get_cache)]
 
 
 async def get_permission_service(

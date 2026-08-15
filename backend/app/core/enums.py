@@ -74,12 +74,22 @@ class ReportStatus(StrEnum):
 
 
 class EventType(StrEnum):
-    JOB_VIEWED = "job_viewed"
-    APPLY_CLICKED = "apply_clicked"
+    """Behavioural events.
+
+    `job_saved` and `filter_used` predate the rest and are kept: the first
+    drives `jobs.save_count`, the second answers "which filters do people
+    actually use", and both are already instrumented. Removing them to tidy the
+    list would delete working measurement.
+    """
+
+    JOB_VIEW = "job_view"
+    APPLY_CLICK = "apply_click"
+    SEARCH = "search"
+    SHARE = "share"
+    REPORT_CREATED = "report_created"
+    SOURCE_CLICK = "source_click"
     JOB_SAVED = "job_saved"
-    SEARCH_SUBMITTED = "search_submitted"
     FILTER_USED = "filter_used"
-    JOB_REPORTED = "job_reported"
 
 
 class DeviceType(StrEnum):

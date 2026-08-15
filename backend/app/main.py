@@ -10,28 +10,46 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from app.api import ops as ops_router
+from app.api.middleware import register_middleware
+from app.api.v1.routers import admin_admins as admin_admins_router
+from app.api.v1.routers import admin_analytics as admin_analytics_router
 from app.api.v1.routers import admin_jobs as admin_jobs_router
 from app.api.v1.routers import admin_reports as admin_reports_router
+from app.api.v1.routers import analytics as analytics_router
 from app.api.v1.routers import auth as auth_router
 from app.api.v1.routers import jobs as jobs_router
 from app.api.v1.routers import reports as reports_router
 from app.api.v1.routers import taxonomy as taxonomy_router
-from app.core.config import settings
+from app.core.config import assert_secret_key_is_strong, settings
 from app.core.exceptions import DomainError
+from app.core.logging import configure_logging
 from app.db.database import SessionFactory, dispose_engine
 from app.db.validate import assert_permissions_in_sync
+from app.services.metrics_service import MetricsService
 from app.services.permission_service import create_redis
+from app.tasks.scheduler import scheduler_handle
 
-logging.basicConfig(
-    level=logging.DEBUG if settings.debug else logging.INFO,
-    format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
-)
+configure_logging(json_logs=settings.json_logs, debug=settings.debug)
 logger = logging.getLogger("rozgar")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    logger.info("starting %s (%s)", settings.app_name, settings.environment)
+    logger.info(
+        "starting",
+        extra={
+            "event": "app.starting",
+            "app": settings.app_name,
+            "version": settings.app_version,
+            "environment": settings.environment,
+        },
+    )
+
+    # Before anything can mint a token with it. A weak signing key outside
+    # local development is not a warning, it is forgeable authentication.
+    assert_secret_key_is_strong(settings)
+    MetricsService.set_build_info(version=settings.app_version, environment=settings.environment)
 
     if settings.validate_permissions_on_startup:
         async with SessionFactory() as session:
@@ -46,8 +64,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if app.state.redis is not None:
         logger.info("redis connected; permission caching enabled")
 
+    # In-process, and every worker starts one. Each task takes a Postgres
+    # advisory lock, so N schedulers do not mean N times the work — see
+    # `app.tasks.scheduled_tasks`. Disable per-instance with SCHEDULER_ENABLED.
+    if settings.scheduler_enabled:
+        scheduler_handle.start()
+
     yield
 
+    scheduler_handle.shutdown()
     if app.state.redis is not None:
         await app.state.redis.aclose()
     await dispose_engine()
@@ -80,7 +105,7 @@ def _problem(
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
-        version="0.5.0",
+        version=settings.app_version,
         docs_url="/docs" if not settings.is_production else None,
         redoc_url=None,
         openapi_url="/openapi.json" if not settings.is_production else None,
@@ -122,21 +147,24 @@ def create_app() -> FastAPI:
             errors=errors,
         )
 
-    @app.get("/health", tags=["ops"])
-    async def health() -> dict[str, str]:
-        """Liveness only — deliberately does not touch the database, so a slow
-        query cannot cause an orchestrator to kill a healthy process."""
-        return {"status": "ok", "environment": settings.environment}
+    register_middleware(app)
+
+    # Unversioned: /health and /ready are wired into orchestrator config
+    # and load-balancer target groups, which must not move when the API
+    # version does.
+    app.include_router(ops_router.router)
 
     app.include_router(auth_router.router, prefix=settings.api_v1_prefix)
     app.include_router(jobs_router.router, prefix=settings.api_v1_prefix)
     app.include_router(reports_router.router, prefix=settings.api_v1_prefix)
+    app.include_router(analytics_router.router, prefix=settings.api_v1_prefix)
     app.include_router(taxonomy_router.public, prefix=settings.api_v1_prefix)
     app.include_router(admin_jobs_router.router, prefix=settings.api_v1_prefix)
     app.include_router(admin_reports_router.router, prefix=settings.api_v1_prefix)
+    app.include_router(admin_analytics_router.router, prefix=settings.api_v1_prefix)
+    app.include_router(admin_admins_router.router, prefix=settings.api_v1_prefix)
     app.include_router(taxonomy_router.admin, prefix=settings.api_v1_prefix)
 
-    # Analytics lands in Milestone 7.
     return app
 
 

@@ -14,13 +14,14 @@ describes the parent.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Identity,
@@ -64,6 +65,7 @@ class AnalyticsEvent(Base):
     #: to survive a later re-categorisation of the job.
     source_id: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True), nullable=True)
     category_id: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True), nullable=True)
+    location_id: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True), nullable=True)
 
     filters: Mapped[dict | None] = mapped_column(JSONB(), nullable=True)
     referrer_host: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -138,4 +140,74 @@ class SearchLog(Base):
     )
 
 
-__all__ = ["AnalyticsEvent", "SearchLog"]
+class AnalyticsDailyRollup(Base):
+    """Pre-aggregated daily counters, one row per job per day.
+
+    Raw events answer every question but answer none of them quickly: a ninety
+    day dashboard over `analytics_events` scans three partitions and millions
+    of rows to produce twenty numbers. This table is that scan, done once by a
+    scheduled task.
+
+    **Grain is `(day, job_id)` with `job_id` NOT NULL.** Attribution columns are
+    copied down from the events rather than joined from `jobs`, for the same
+    reason the events carry them: a job that is re-categorised next month must
+    not silently rewrite last month's reporting.
+
+    Search is deliberately absent. `search_logs` already holds result counts,
+    degradation flags and latency that no event row has, so search metrics
+    aggregate from there. Rolling them in here would create a second source of
+    truth for one number, and two sources of truth for one number eventually
+    disagree.
+
+    Not partitioned: one row per active job per day is thousands per day, not
+    millions, and a plain table with a BRIN-friendly date index stays fast for
+    years. Partitioning it would be ceremony.
+    """
+
+    __tablename__ = "analytics_daily_rollups"
+
+    day: Mapped[date] = mapped_column(Date(), primary_key=True, nullable=False)
+    job_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("jobs.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+
+    #: Attribution as it stood when the events happened.
+    source_id: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True), nullable=True)
+    category_id: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True), nullable=True)
+    location_id: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True), nullable=True)
+
+    views: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text("0"))
+    apply_clicks: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text("0"))
+    shares: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text("0"))
+    source_clicks: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text("0"))
+    saves: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text("0"))
+    reports: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text("0"))
+
+    #: Unique sessions that saw this job. Cannot be summed across days without
+    #: overcounting a returning visitor — the column is per-day only, and the
+    #: reporting layer never adds it up.
+    unique_sessions: Mapped[int] = mapped_column(
+        Integer(), nullable=False, server_default=text("0")
+    )
+
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "views >= 0 AND apply_clicks >= 0 AND shares >= 0 AND source_clicks >= 0 "
+            "AND saves >= 0 AND reports >= 0 AND unique_sessions >= 0",
+            name="counts_non_negative",
+        ),
+        # Every dashboard query is "this date window, ordered by a counter".
+        Index("ix_analytics_daily_rollups_day", text("day DESC")),
+        Index("ix_analytics_daily_rollups_source_day", "source_id", text("day DESC")),
+        Index("ix_analytics_daily_rollups_category_day", "category_id", text("day DESC")),
+    )
+
+
+__all__ = ["AnalyticsDailyRollup", "AnalyticsEvent", "SearchLog"]

@@ -8,6 +8,7 @@ so facet counts stay exact rather than approximate.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from uuid import UUID
 
 from sqlalchemy import Select, case, func, literal, or_, select, text
 from sqlalchemy.orm import selectinload
@@ -299,3 +300,28 @@ class SearchRepository:
             .limit(limit)
         )
         return list((await self.session.execute(stmt)).scalars().all())
+
+    async def jobs_by_ids(self, job_ids: list[UUID]) -> list[Job]:
+        """Load jobs by id, preserving the order given.
+
+        Postgres returns no order without an ORDER BY, so the ranking a cache
+        hit is meant to reproduce would be lost. Re-sorting in Python keeps the
+        query a simple indexed lookup rather than an array_position join.
+        """
+        if not job_ids:
+            return []
+        stmt = (
+            select(Job)
+            .where(Job.id.in_(job_ids), Job.deleted_at.is_(None))
+            .where(Job.status == JobStatus.PUBLISHED)
+            .options(
+                selectinload(Job.category),
+                selectinload(Job.location),
+                selectinload(Job.source),
+                selectinload(Job.company),
+            )
+        )
+        found = {j.id: j for j in (await self.session.execute(stmt)).scalars().unique().all()}
+        # Missing ids are listings deleted or expired since the entry was
+        # cached; dropping them is correct and self-healing.
+        return [found[i] for i in job_ids if i in found]

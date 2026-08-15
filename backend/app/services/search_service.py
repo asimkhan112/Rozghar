@@ -25,6 +25,7 @@ from app.models.job import Job
 from app.repositories.job_repo import JobFilters
 from app.repositories.search_log_repo import SearchLogRepository
 from app.repositories.search_repo import SearchRepository
+from app.services.cache_service import TTL_SEARCH, CacheService
 
 logger = logging.getLogger(__name__)
 
@@ -105,10 +106,11 @@ def expand_synonyms(query: str) -> tuple[str, list[str]]:
 
 
 class SearchService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, cache: CacheService | None = None) -> None:
         self.session = session
         self.repo = SearchRepository(session)
         self.logs = SearchLogRepository(session)
+        self.cache = cache
 
     async def search(
         self,
@@ -137,6 +139,18 @@ class SearchService:
             return outcome
 
         _, terms = expand_synonyms(query)
+
+        # A cache hit skips the ranking scan — the part that costs 145ms at
+        # 100k listings because `ts_rank_cd` is not index-assisted — but it
+        # deliberately does *not* skip the search log below. Caching the
+        # measurement along with the result would make popular queries
+        # invisible in the telemetry, which is exactly backwards.
+        cache_key = _cache_key(query, filters, page, per_page)
+        cached = await self.cache.get("search", cache_key) if self.cache else None
+        if cached is not None:
+            outcome = await self._from_cache(cached, query, terms, started)
+            await self._log(outcome, raw_query, filters, session_id, log)
+            return outcome
 
         # --- tier 1: exactly what the user typed --------------------------
         # Deliberately *not* synonym-expanded. Expansion adds terms, and with
@@ -181,31 +195,90 @@ class SearchService:
             expanded_terms=terms,
         )
 
-        if log:
-            # Never let telemetry break a search.
-            try:
-                await self.logs.record(
-                    session_id=session_id,
-                    raw_query=raw_query[:200],
-                    normalised_query=outcome.normalised_query[:200],
-                    filters=_filters_to_dict(filters),
-                    result_count=total,
-                    was_degraded=degraded,
-                    response_ms=response_ms,
-                )
-            except Exception:  # noqa: BLE001
-                logger.warning("failed to record search log", exc_info=True)
+        # Only exact results are cached. A degraded result set is a symptom of
+        # a gap in the catalogue, and freezing it for two minutes would keep
+        # serving the fallback after the listing that fixes it was published.
+        if self.cache is not None and strategy is SearchStrategy.EXACT and results:
+            await self.cache.set(
+                "search",
+                {
+                    "job_ids": [str(r.job.id) for r in results],
+                    "scores": [r.score for r in results],
+                    "total": total,
+                },
+                cache_key,
+                ttl=TTL_SEARCH,
+            )
+
+        await self._log(outcome, raw_query, filters, session_id, log)
 
         if strategy is SearchStrategy.NONE:
-            logger.info("zero-result search: %r", outcome.normalised_query)
+            logger.info(
+                "zero-result search",
+                extra={"event": "search.zero_results", "query": outcome.normalised_query},
+            )
 
         return outcome
+
+    async def _from_cache(
+        self, payload: dict, query: str, terms: list[str], started: float
+    ) -> SearchOutcome:
+        """Rehydrate jobs by id, preserving the cached ranking order.
+
+        Only the ids and scores are cached, never the rows: a listing cached
+        whole would keep being served after it was expired or edited, and this
+        endpoint is the one a reader sees first.
+        """
+        jobs = await self.repo.jobs_by_ids([UUID(i) for i in payload["job_ids"]])
+        return SearchOutcome(
+            items=jobs,
+            scores=payload.get("scores", []),
+            total=payload["total"],
+            strategy=SearchStrategy.EXACT,
+            degraded=False,
+            response_ms=int((time.perf_counter() - started) * 1000),
+            normalised_query=query.lower(),
+            expanded_terms=terms,
+        )
+
+    async def _log(
+        self,
+        outcome: SearchOutcome,
+        raw_query: str,
+        filters: JobFilters,
+        session_id: UUID | None,
+        enabled: bool,
+    ) -> None:
+        """Never let telemetry break a search."""
+        if not enabled:
+            return
+        try:
+            await self.logs.record(
+                session_id=session_id,
+                raw_query=raw_query[:200],
+                normalised_query=outcome.normalised_query[:200],
+                filters=_filters_to_dict(filters),
+                result_count=outcome.total,
+                was_degraded=outcome.degraded,
+                response_ms=outcome.response_ms,
+            )
+        except Exception:  # noqa: BLE001
+            logger.warning("failed to record search log", exc_info=True)
 
     async def suggest(self, prefix: str, *, limit: int = 8) -> list[str]:
         cleaned = normalise(prefix)
         if len(cleaned) < 2:
             return []
         return await self.repo.suggest_titles(cleaned, limit=limit)
+
+
+def _cache_key(query: str, filters: JobFilters, page: int, per_page: int) -> str:
+    """Filters are part of the key. "react" with a Karachi filter and "react"
+    without are different result sets, and sharing a key between them would
+    serve one to the other."""
+    parts = [query.lower(), str(page), str(per_page)]
+    parts.extend(f"{k}={v}" for k, v in sorted(_filters_to_dict(filters).items()))
+    return "|".join(parts)
 
 
 def _filters_to_dict(filters: JobFilters) -> dict:
