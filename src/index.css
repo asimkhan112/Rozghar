@@ -1,0 +1,40 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@100;200;300;400;500;600;700;800;900&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Geist', system-ui, sans-serif;
+  --color-primary: #33A4BB;
+  --color-primary-hover: #2B8FA3;
+  --color-background: #F8FAFB;
+  --color-surface: #FFFFFF;
+  --color-text-primary: #111827;
+  --color-text-secondary: #6B7280;
+  --color-border: #E5EAF0;
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: 'Geist', system-ui, sans-serif;
+  background-color: #F8FAFB;
+  color: #111827;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #E5EAF0; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #33A4BB; }
+
+::selection {
+  background: #33A4BB22;
+  color: #111827;
+}

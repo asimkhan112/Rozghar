@@ -1,0 +1,38 @@
+# Local development dependencies.
+#
+# `name` is pinned explicitly. Compose otherwise derives the project name from
+# the directory — "backend" here — and other projects on this machine use that
+# same folder name. A collision makes compose treat their containers as ours
+# and silently recreate them.
+#
+# Port 5433 avoids the host Postgres already listening on 5432.
+name: rozgar
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: rozgar-postgres
+    environment:
+      POSTGRES_USER: rozgar
+      POSTGRES_PASSWORD: rozgar
+      POSTGRES_DB: rozgar
+    ports: ["5433:5432"]
+    volumes: ["rozgar-pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rozgar -d rozgar"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: rozgar-redis
+    ports: ["6380:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  rozgar-pgdata:

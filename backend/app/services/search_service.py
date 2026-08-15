@@ -1,0 +1,226 @@
+"""Search orchestration: normalisation, the degradation ladder, and logging.
+
+This is the seam that keeps the query engine replaceable. Everything above it
+asks for "jobs matching a query"; everything below is PostgreSQL specific. The
+day Elasticsearch genuinely earns its place, it replaces this file's internals
+and nothing else.
+
+Every search is logged with its result count, which makes zero-result rate a
+first-class product metric from launch rather than a later instrumentation
+project.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import time
+from dataclasses import dataclass, field
+from enum import StrEnum
+from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.job import Job
+from app.repositories.job_repo import JobFilters
+from app.repositories.search_repo import SearchRepository
+from app.repositories.search_log_repo import SearchLogRepository
+
+logger = logging.getLogger(__name__)
+
+MAX_QUERY_LENGTH = 120
+_WHITESPACE = re.compile(r"\s+")
+#: Control characters and the tsquery operators users do not mean literally.
+_STRIP = re.compile(r"[\x00-\x1f\x7f&|!<>():*]")
+
+
+class SearchStrategy(StrEnum):
+    """Which tier produced the results. Returned to the client so the UI can
+    say "no exact matches — showing similar roles" instead of pretending."""
+
+    EXACT = "exact"
+    BROADENED = "broadened"
+    FUZZY = "fuzzy"
+    RELATED = "related"
+    NONE = "none"
+
+
+#: Market vocabulary the English dictionary cannot know about. Applied before
+#: the query reaches PostgreSQL.
+SYNONYMS: dict[str, str] = {
+    "fresher": "fresh graduate entry",
+    "freshers": "fresh graduate entry",
+    "swe": "software engineer",
+    "sde": "software engineer",
+    "se": "software engineer",
+    "dev": "developer",
+    "devs": "developer",
+    "frontend": "frontend front-end",
+    "backend": "backend back-end",
+    "fullstack": "fullstack full-stack",
+    "wfh": "remote work from home",
+    "lhr": "lahore",
+    "khi": "karachi",
+    "isb": "islamabad",
+    "pindi": "rawalpindi",
+    "hr": "human resources",
+    "ba": "business analyst",
+    "qa": "quality assurance testing",
+}
+
+
+@dataclass
+class SearchOutcome:
+    items: list[Job]
+    scores: list[float]
+    total: int
+    strategy: SearchStrategy
+    degraded: bool
+    response_ms: int
+    normalised_query: str
+    expanded_terms: list[str] = field(default_factory=list)
+
+
+def normalise(raw: str) -> str:
+    """Trim, collapse whitespace, strip operators, cap length.
+
+    Capping matters: a megabyte query would otherwise reach the tsquery parser
+    and cost real CPU for a request that can never be useful.
+    """
+    cleaned = _STRIP.sub(" ", raw or "")
+    cleaned = _WHITESPACE.sub(" ", cleaned).strip()
+    return cleaned[:MAX_QUERY_LENGTH]
+
+
+def expand_synonyms(query: str) -> tuple[str, list[str]]:
+    """Return the expanded query and its individual terms."""
+    terms: list[str] = []
+    for token in query.lower().split():
+        expansion = SYNONYMS.get(token)
+        terms.extend(expansion.split() if expansion else [token])
+    # Preserve order while removing duplicates.
+    seen: set[str] = set()
+    unique = [t for t in terms if not (t in seen or seen.add(t))]
+    return " ".join(unique), unique
+
+
+class SearchService:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+        self.repo = SearchRepository(session)
+        self.logs = SearchLogRepository(session)
+
+    async def search(
+        self,
+        raw_query: str,
+        filters: JobFilters,
+        *,
+        page: int = 1,
+        per_page: int = 20,
+        session_id: UUID | None = None,
+        log: bool = True,
+    ) -> SearchOutcome:
+        started = time.perf_counter()
+        query = normalise(raw_query)
+        offset = (page - 1) * per_page
+
+        if not query:
+            outcome = SearchOutcome(
+                items=[], scores=[], total=0,
+                strategy=SearchStrategy.NONE, degraded=False,
+                response_ms=0, normalised_query="",
+            )
+            return outcome
+
+        _, terms = expand_synonyms(query)
+
+        # --- tier 1: exactly what the user typed --------------------------
+        # Deliberately *not* synonym-expanded. Expansion adds terms, and with
+        # AND semantics every added term is another requirement — "frontend"
+        # expanding to include "front-end" made an exact title match fail.
+        results, total = await self.repo.search_exact(
+            query, filters, limit=per_page, offset=offset
+        )
+        strategy = SearchStrategy.EXACT
+
+        # --- tier 2: any term, synonyms included --------------------------
+        # OR semantics is where expansion belongs: synonyms become
+        # alternatives rather than extra requirements.
+        if not results:
+            results, total = await self.repo.search_broadened(
+                terms, filters, limit=per_page, offset=offset
+            )
+            strategy = SearchStrategy.BROADENED
+
+        # --- tier 3: typo tolerance ---------------------------------------
+        if not results:
+            results, total = await self.repo.search_fuzzy(
+                query, filters, limit=per_page, offset=offset
+            )
+            strategy = SearchStrategy.FUZZY
+
+        # --- tier 4: something rather than nothing ------------------------
+        if not results:
+            related = await self.repo.recent_fallback(filters, limit=per_page)
+            results, total = related, len(related)
+            strategy = SearchStrategy.RELATED if related else SearchStrategy.NONE
+
+        response_ms = int((time.perf_counter() - started) * 1000)
+        degraded = strategy not in (SearchStrategy.EXACT, SearchStrategy.NONE)
+
+        outcome = SearchOutcome(
+            items=[r.job for r in results],
+            scores=[r.score for r in results],
+            total=total,
+            strategy=strategy,
+            degraded=degraded,
+            response_ms=response_ms,
+            normalised_query=query.lower(),
+            expanded_terms=terms,
+        )
+
+        if log:
+            # Never let telemetry break a search.
+            try:
+                await self.logs.record(
+                    session_id=session_id,
+                    raw_query=raw_query[:200],
+                    normalised_query=outcome.normalised_query[:200],
+                    filters=_filters_to_dict(filters),
+                    result_count=total,
+                    was_degraded=degraded,
+                    response_ms=response_ms,
+                )
+            except Exception:  # noqa: BLE001
+                logger.warning("failed to record search log", exc_info=True)
+
+        if strategy is SearchStrategy.NONE:
+            logger.info("zero-result search: %r", outcome.normalised_query)
+
+        return outcome
+
+    async def suggest(self, prefix: str, *, limit: int = 8) -> list[str]:
+        cleaned = normalise(prefix)
+        if len(cleaned) < 2:
+            return []
+        return await self.repo.suggest_titles(cleaned, limit=limit)
+
+
+def _filters_to_dict(filters: JobFilters) -> dict:
+    """Only the filters that were actually set.
+
+    Recording the full struct with a dozen nulls makes the "which filters do
+    people use?" report unreadable.
+    """
+    payload = {
+        "category": filters.category_slug,
+        "location": filters.location_slug,
+        "work_type": filters.work_type,
+        "employment_type": filters.employment_type,
+        "experience": filters.experience_level,
+        "featured": filters.featured,
+        "verified": filters.verified,
+        "salary_min": str(filters.salary_min) if filters.salary_min is not None else None,
+        "posted_within_days": filters.posted_within_days,
+    }
+    return {k: str(v) for k, v in payload.items() if v is not None}
