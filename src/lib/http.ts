@@ -1,18 +1,31 @@
 /**
- * The single HTTP client.
+ * The single HTTP client, built on Axios.
  *
- * Everything the app fetches goes through `request`. That is what makes the
- * cross-cutting concerns — error shape, timeouts, auth headers, token refresh —
- * exist in one place instead of being reimplemented slightly differently at
- * forty call sites.
+ * Everything the app fetches goes through this instance. That is what makes
+ * the cross-cutting concerns — error shape, timeouts, auth headers, token
+ * refresh — exist in one place instead of being reimplemented slightly
+ * differently at forty call sites.
  *
  * Requests are same-origin by design. In production a reverse proxy serves the
  * app and the API from one host; in development the Vite proxy does the same.
  * The base URL is therefore a path, never an origin — which also means the
  * refresh cookie (`SameSite=Strict`) is sent without any CORS involvement.
+ *
+ * The exported surface (`api`, `ApiError`, `describeError`, `installAuthHooks`)
+ * is unchanged from the fetch implementation it replaces, so the auth store and
+ * auth service continue to work untouched. The 401-refresh path in particular
+ * is ported rather than rewritten: rotating a refresh token twice looks like
+ * theft to the backend, which revokes every session in the family.
  */
 
-export const API_BASE = '/api/v1'
+import axios, {
+  AxiosError,
+  type AxiosInstance,
+  type AxiosRequestConfig,
+  type InternalAxiosRequestConfig,
+} from "axios"
+
+export const API_BASE = "/api/v1"
 
 /** Long enough for a cold search, short enough that a hung request surfaces. */
 const DEFAULT_TIMEOUT_MS = 15_000
@@ -38,7 +51,7 @@ export class ApiError extends Error {
 
   constructor(problem: Problem) {
     super(problem.detail || problem.title)
-    this.name = 'ApiError'
+    this.name = "ApiError"
     this.status = problem.status
     this.problem = problem
     this.fieldErrors = problem.errors ?? {}
@@ -47,7 +60,7 @@ export class ApiError extends Error {
   /** The error code, e.g. `permission_denied` — stable across message edits. */
   get code(): string {
     const match = /\/errors\/([a-z_]+)$/.exec(this.problem.type)
-    return match?.[1] ?? 'unknown'
+    return match?.[1] ?? "unknown"
   }
 
   /** True when retrying later might work; false when the request itself is wrong. */
@@ -58,21 +71,12 @@ export class ApiError extends Error {
 
 /** Raised when the network never answered — distinct from the server saying no. */
 export class NetworkError extends Error {
-  constructor(message: string, readonly cause?: unknown) {
+  readonly cause?: unknown
+  constructor(message: string, cause?: unknown) {
     super(message)
-    this.name = 'NetworkError'
+    this.name = "NetworkError"
+    this.cause = cause
   }
-}
-
-export interface RequestOptions extends Omit<RequestInit, 'body'> {
-  /** Serialised as JSON unless it is already a `FormData` or a string. */
-  body?: unknown
-  /** Appended as a query string; `undefined` and `null` values are dropped. */
-  query?: Record<string, string | number | boolean | undefined | null>
-  timeoutMs?: number
-  /** Skips the access token and the 401-refresh path. Used by auth itself. */
-  anonymous?: boolean
-  signal?: AbortSignal
 }
 
 /**
@@ -94,110 +98,109 @@ export function installAuthHooks(next: AuthHooks): void {
   hooks = next
 }
 
-function buildUrl(path: string, query: RequestOptions['query']): string {
-  const url = `${API_BASE}${path}`
-  if (!query) return url
-  const params = new URLSearchParams()
-  for (const [key, value] of Object.entries(query)) {
-    if (value === undefined || value === null || value === '') continue
-    params.set(key, String(value))
-  }
-  const serialised = params.toString()
-  return serialised ? `${url}?${serialised}` : url
+/** Per-request options this client understands beyond Axios' own. */
+export interface RequestConfig
+  extends AxiosRequestConfig {
+  /** Skips the access token and the 401-refresh path. Used by auth itself. */
+  anonymous?: boolean
 }
 
-async function toProblem(response: Response): Promise<Problem> {
-  try {
-    const body = await response.json()
-    if (body && typeof body === 'object' && 'title' in body) return body as Problem
-  } catch {
-    // A non-JSON error body — a proxy 502, an HTML error page. Fall through.
+interface RetryableConfig
+  extends InternalAxiosRequestConfig {
+  /** Set once a request has already been retried after a refresh. */
+  anonymous?: boolean
+  _retried?: boolean
+}
+
+export const client: AxiosInstance = axios.create({
+  baseURL: API_BASE,
+  timeout: DEFAULT_TIMEOUT_MS,
+  // Same-origin, so cookies ride along without `withCredentials` and without
+  // this becoming a CORS request.
+  headers: { Accept: "application/json" },
+  // Repeated keys rather than bracket notation: FastAPI reads `?ids=a&ids=b`
+  // as a list, and `?ids[]=a` as a parameter literally named `ids[]`.
+  paramsSerializer: { indexes: null },
+})
+
+client.interceptors.request.use((config: RetryableConfig) => {
+  if (!config.anonymous) {
+    const token = hooks?.getAccessToken() ?? null
+    if (token) config.headers.set("Authorization", `Bearer ${token}`)
   }
+  return config
+})
+
+function toProblem(error: AxiosError): Problem {
+  const body = error.response?.data
+  if (body && typeof body === "object" && "title" in body)
+    return body as Problem
   return {
-    type: 'about:blank',
-    title: response.statusText || 'Request failed',
-    status: response.status,
+    type: "about:blank",
+    title: error.response?.statusText || "Request failed",
+    status: error.response?.status ?? 0,
   }
 }
 
-async function send(path: string, options: RequestOptions, token: string | null): Promise<Response> {
-  const { body, query, timeoutMs = DEFAULT_TIMEOUT_MS, anonymous, headers, ...rest } = options
+client.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const config = error.config as RetryableConfig | undefined
 
-  const finalHeaders = new Headers(headers)
-  if (!anonymous && token) finalHeaders.set('Authorization', `Bearer ${token}`)
-
-  let payload: BodyInit | undefined
-  if (body instanceof FormData || typeof body === 'string') {
-    payload = body
-  } else if (body !== undefined) {
-    payload = JSON.stringify(body)
-    finalHeaders.set('Content-Type', 'application/json')
-  }
-
-  // A caller-supplied signal and the timeout both have to be able to abort.
-  const timeout = new AbortController()
-  const timer = setTimeout(() => timeout.abort(), timeoutMs)
-  const signal = options.signal
-    ? AbortSignal.any([options.signal, timeout.signal])
-    : timeout.signal
-
-  try {
-    return await fetch(buildUrl(path, query), {
-      ...rest,
-      headers: finalHeaders,
-      body: payload,
-      signal,
-      // Sends the refresh cookie. Same-origin, so this is not a CORS request.
-      credentials: 'same-origin',
-    })
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
-export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  let response: Response
-  try {
-    response = await send(path, options, hooks?.getAccessToken() ?? null)
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      // A caller-cancelled request is not a failure worth surfacing; a
-      // timed-out one is. They are distinguished by whose signal fired.
-      if (options.signal?.aborted) throw error
-      throw new NetworkError('The request timed out.', error)
+    // The server never answered: a timeout, a dropped connection, an offline
+    // device. Distinct from the server answering "no", which is an ApiError.
+    if (!error.response) {
+      if (axios.isCancel(error)) throw error
+      const timedOut =
+        error.code === "ECONNABORTED" || error.code === "ETIMEDOUT"
+      throw new NetworkError(
+        timedOut ? "The request timed out." : "Could not reach the server.",
+        error,
+      )
     }
-    throw new NetworkError('Could not reach the server.', error)
-  }
 
-  // One retry, and only after a successful refresh. `refresh()` is
-  // single-flight in the auth layer: concurrent 401s wait on one rotation
-  // rather than each starting their own. Rotating a refresh token twice looks
-  // like theft to the backend, which revokes every session in the family.
-  if (response.status === 401 && !options.anonymous && hooks) {
-    const token = await hooks.refresh()
-    if (token) {
-      response = await send(path, options, token)
-    } else {
+    // One retry, and only after a successful refresh. `refresh()` is
+    // single-flight in the auth layer: concurrent 401s wait on one rotation
+    // rather than each starting their own.
+    if (
+      error.response.status === 401 &&
+      config &&
+      !config.anonymous &&
+      !config._retried &&
+      hooks
+    ) {
+      config._retried = true
+      const token = await hooks.refresh()
+      if (token) {
+        config.headers.set("Authorization", `Bearer ${token}`)
+        return client.request(config)
+      }
       hooks.onAuthFailure()
     }
-  }
 
-  if (!response.ok) throw new ApiError(await toProblem(response))
+    throw new ApiError(toProblem(error))
+  },
+)
+
+async function unwrap<T>(
+  promise: Promise<{ data: T; status: number }>,
+): Promise<T> {
+  const response = await promise
+  // 204 carries no body; Axios gives an empty string, which is not the absence
+  // of a value the caller is typed to expect.
   if (response.status === 204) return undefined as T
-
-  const contentType = response.headers.get('content-type') ?? ''
-  if (!contentType.includes('application/json')) return (await response.text()) as T
-  return (await response.json()) as T
+  return response.data
 }
 
 export const api = {
-  get: <T>(path: string, options?: RequestOptions) => request<T>(path, { ...options, method: 'GET' }),
-  post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
-    request<T>(path, { ...options, method: 'POST', body }),
-  patch: <T>(path: string, body?: unknown, options?: RequestOptions) =>
-    request<T>(path, { ...options, method: 'PATCH', body }),
-  delete: <T>(path: string, options?: RequestOptions) =>
-    request<T>(path, { ...options, method: 'DELETE' }),
+  get: <T>(path: string, config?: RequestConfig) =>
+    unwrap<T>(client.get<T>(path, config)),
+  post: <T>(path: string, body?: unknown, config?: RequestConfig) =>
+    unwrap<T>(client.post<T>(path, body, config)),
+  patch: <T>(path: string, body?: unknown, config?: RequestConfig) =>
+    unwrap<T>(client.patch<T>(path, body, config)),
+  delete: <T>(path: string, config?: RequestConfig) =>
+    unwrap<T>(client.delete<T>(path, config)),
 }
 
 /**
@@ -209,10 +212,13 @@ export const api = {
  */
 export function describeError(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 429) return error.problem.detail ?? 'Too many requests. Please slow down.'
-    if (error.status >= 500) return 'Something went wrong on our side. Please try again.'
+    if (error.status === 429)
+      return error.problem.detail ?? "Too many requests. Please slow down."
+    if (error.status >= 500)
+      return "Something went wrong on our side. Please try again."
     return error.problem.detail ?? error.problem.title
   }
-  if (error instanceof NetworkError) return 'Could not reach the server. Check your connection.'
-  return 'Something went wrong.'
+  if (error instanceof NetworkError)
+    return "Could not reach the server. Check your connection."
+  return "Something went wrong."
 }

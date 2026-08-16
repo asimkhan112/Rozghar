@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { actionTone, adminStatusTone, color, fontFamily, pillTone, radius, shadow, size, tracking, weight } from '@/design-system'
-import { ACTIVITY_FEED, CATEGORIES_DATA, CONVERSION_DATA, LOCATIONS_DATA, METRIC_CARDS, REPORTS_DATA, SEARCH_KEYWORDS, SOURCES_DATA, TOP_JOBS_TABLE, TOP_LOCATION_SHARE } from '@/data/admin.mock'
 import { FField, FormSection, FRow, IS, StatusPill } from '@/components/ui/AdminForm'
 import { useToast } from '@/stores/useToastStore'
 

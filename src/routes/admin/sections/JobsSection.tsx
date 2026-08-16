@@ -1,11 +1,31 @@
-import { useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
-import { actionTone, adminStatusTone, bareInput, color, linkReset, pillTone, radius, size, tracking, weight } from '@/design-system'
-import { StatusPill } from '@/components/ui/AdminForm'
-import { useToast } from '@/stores/useToastStore'
-import { getAllJobs } from '@/data/queries'
-import { toAdminRow } from '../adminRow'
-import type { AdminJobRow } from '@/types/admin'
+import { useMemo, useState } from "react"
+import { Link, useNavigate } from "react-router"
+import {
+  actionTone,
+  adminStatusTone,
+  bareInput,
+  color,
+  linkReset,
+  pillTone,
+  radius,
+  size,
+  tracking,
+  weight,
+} from "@/design-system"
+import { StatusPill } from "@/components/ui/AdminForm"
+import { useToast } from "@/stores/useToastStore"
+import {
+  useAdminJobs,
+  useDeleteJob,
+  useExpireJob,
+  useFeatureJob,
+  usePublishJob,
+  useVerifyJob,
+} from "@/hooks/queries"
+import { describeError } from "@/lib/http"
+import { ErrorPanel } from "@/components/QueryState"
+import { toAdminRow } from "../adminRow"
+import type { AdminJobRow } from "@/types/admin"
 
 /**
  * Admin jobs table.
@@ -17,134 +37,634 @@ export default function JobsSection() {
   const showToast = useToast()
   const navigate = useNavigate()
 
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('All')
-  const [selected, setSelected] = useState<number[]>([])
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
+  const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState("All")
+  // Ids, not row indices. Indices are positions in a filtered, paginated view
+  // that shifts under the selection the moment a mutation lands — selecting
+  // row 3 and then expiring it would apply the next action to whatever slid
+  // into that position.
+  const [selected, setSelected] = useState<string[]>([])
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const perPage = 8
 
-  const rows = useMemo(() => getAllJobs().map(toAdminRow), [])
+  const STATUS_TO_API: Record<string, string | undefined> = {
+    Published: "published",
+    Draft: "draft",
+    Expired: "expired",
+    // Not lifecycle states: `featured` and `verified` are boolean columns and
+    // `expiring` is derived from the expiry date. They filter client-side over
+    // the loaded page rather than pretending to be a status the API knows.
+    Featured: undefined,
+    Verified: undefined,
+    Expiring: undefined,
+  }
+
+
+  // The editorial view: drafts, scheduled and archived listings alongside
+  // published ones. Requires JOB_VIEW_ALL, which the router enforces.
+  const { data, isPending, isError, error, refetch } = useAdminJobs({
+    per_page: 50,
+    status: statusFilter === "All" ? undefined : STATUS_TO_API[statusFilter],
+  })
+
+  const publish = usePublishJob()
+  const expire = useExpireJob()
+  const verify = useVerifyJob()
+  const feature = useFeatureJob()
+  const remove = useDeleteJob()
+
+  const jobsById = useMemo(
+    () => new Map((data?.items ?? []).map((job) => [job.id, job])),
+    [data],
+  )
+  const rows = useMemo(() => (data?.items ?? []).map(toAdminRow), [data])
+
+  /**
+   * Runs a mutation and reports what actually happened.
+   *
+   * Every toast in this table is now downstream of a resolved promise. The
+   * previous ones fired on click and said "applied" whether or not anything
+   * had been.
+   */
+  async function run(id: string, label: string, action: () => Promise<unknown>) {
+    setBusy(id)
+    try {
+      await action()
+      showToast(`${label} — saved`)
+    } catch (err) {
+      showToast(describeError(err))
+    } finally {
+      setBusy(null)
+    }
+  }
 
   const jobs = useMemo(() => {
     const term = search.toLowerCase()
-    return rows.filter(j => {
-      const matchSearch = j.title.toLowerCase().includes(term) || j.company.toLowerCase().includes(term)
-      const matchStatus = statusFilter === 'All' || j.status === statusFilter.toLowerCase()
+    return rows.filter((j) => {
+      const matchSearch =
+        j.title.toLowerCase().includes(term) ||
+        j.company.toLowerCase().includes(term)
+      const matchStatus =
+        statusFilter === "All" || j.status === statusFilter.toLowerCase()
       return matchSearch && matchStatus
     })
   }, [rows, search, statusFilter])
 
   const paginated = jobs.slice(0, page * perPage)
-  const setSection = (section: string) => navigate(`/admin/dashboard/${section}`)
+  const setSection = (section: string) =>
+    navigate(`/admin/dashboard/${section}`)
 
-  const STATUS_FILTERS = ['All', 'Published', 'Featured', 'Verified', 'Draft', 'Expiring', 'Expired']
-  const allSelected = paginated.length > 0 && paginated.every((_: any, i: number) => selected.includes(i))
+  /**
+   * Applies an action to every selected listing and reports the real tally.
+   *
+   * Sequential rather than parallel: these are audited writes against rows an
+   * operator is watching, and forty concurrent PATCHes would give the database
+   * a burst for no benefit a person could perceive. Failures are counted
+   * rather than aborting — one listing in an illegal state should not stop the
+   * other nine from being processed.
+   */
+  async function runBulk(
+    label: string,
+    ids: string[],
+    action: (id: string) => Promise<unknown>,
+  ) {
+    let ok = 0
+    const failures: string[] = []
+    for (const id of ids) {
+      try {
+        await action(id)
+        ok++
+      } catch (err) {
+        failures.push(describeError(err))
+      }
+    }
+    setSelected([])
+    showToast(
+      failures.length === 0
+        ? `${label}d ${ok} job${ok === 1 ? "" : "s"}`
+        : `${label}d ${ok} of ${ids.length} — ${failures[0]}`,
+    )
+  }
 
-  const toggleAll = () => setSelected(allSelected ? [] : paginated.map((_: any, i: number) => i))
+  const STATUS_FILTERS = [
+    "All",
+    "Published",
+    "Featured",
+    "Verified",
+    "Draft",
+    "Expiring",
+    "Expired",
+  ]
+  const allSelected =
+    paginated.length > 0 && paginated.every((row) => selected.includes(row.id))
+
+  const toggleAll = () =>
+    setSelected(allSelected ? [] : paginated.map((row) => row.id))
+
+  if (isError) {
+    return (
+      <ErrorPanel
+        message={describeError(error)}
+        onRetry={() => void refetch()}
+      />
+    )
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${color.border.base}`, borderRadius: radius.xl, padding: '8px 14px', background: color.surface.base }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color.text.muted} strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search jobs or companies…" style={bareInput(size.sm, { width: '100%' })} />
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <div
+          style={{
+            flex: 1,
+            minWidth: 200,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            border: `1px solid ${color.border.base}`,
+            borderRadius: radius.xl,
+            padding: "8px 14px",
+            background: color.surface.base,
+          }}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={color.text.muted}
+            strokeWidth="2"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search jobs or companies…"
+            style={bareInput(size.sm, { width: "100%" })}
+          />
         </div>
         {selected.length > 0 && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: size.sm, color: color.text.secondary }}>{selected.length} selected</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: size.sm, color: color.text.secondary }}>
+              {selected.length} selected
+            </span>
             {[
-              { label: 'Feature', color: color.warning.text },
-              { label: 'Verify', color: color.info.text },
-              { label: 'Expire', color: color.warning.base },
-              { label: 'Delete', color: color.danger.base },
-            ].map(a => (
-              <button key={a.label} onClick={() => { setSelected([]); showToast(`${a.label}d ${selected.length} job${selected.length > 1 ? 's' : ''}`) }}
-                style={{ padding: '6px 12px', border: `1px solid ${a.color}30`, background: `${a.color}0A`, borderRadius: radius.md, fontSize: size.xs, fontWeight: weight.medium, color: a.color, cursor: 'pointer' }}>
+              {
+                label: "Feature",
+                color: color.warning.text,
+                run: (id: string) => feature.mutateAsync({ id, featured: true }),
+              },
+              {
+                label: "Verify",
+                color: color.info.text,
+                run: (id: string) => verify.mutateAsync({ id, verified: true }),
+              },
+              {
+                label: "Expire",
+                color: color.warning.base,
+                run: (id: string) => expire.mutateAsync({ id }),
+              },
+              {
+                label: "Delete",
+                color: color.danger.base,
+                run: (id: string) => remove.mutateAsync(id),
+              },
+            ].map((a) => (
+              <button
+                key={a.label}
+                onClick={() => void runBulk(a.label, selected, a.run)}
+                style={{
+                  padding: "6px 12px",
+                  border: `1px solid ${a.color}30`,
+                  background: `${a.color}0A`,
+                  borderRadius: radius.md,
+                  fontSize: size.xs,
+                  fontWeight: weight.medium,
+                  color: a.color,
+                  cursor: "pointer",
+                }}
+              >
                 {a.label}
               </button>
             ))}
           </div>
         )}
-        <button onClick={() => setSection('add-job')} style={{ padding: '8px 16px', background: color.brand.base, border: 'none', borderRadius: radius.xl, color: color.surface.base, fontSize: size.sm, fontWeight: weight.medium, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <button
+          onClick={() => setSection("add-job")}
+          style={{
+            padding: "8px 16px",
+            background: color.brand.base,
+            border: "none",
+            borderRadius: radius.xl,
+            color: color.surface.base,
+            fontSize: size.sm,
+            fontWeight: weight.medium,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
           Add Job
         </button>
       </div>
 
       {/* Status filter pills */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {STATUS_FILTERS.map(f => (
-          <button key={f} onClick={() => setStatusFilter(f)} style={{
-            padding: '5px 14px', ...pillTone(statusFilter === f),
-            borderRadius: radius.pill, fontSize: size.xs, fontWeight: statusFilter === f ? weight.semibold : weight.regular, cursor: 'pointer',
-          }}>{f}</button>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {STATUS_FILTERS.map((f) => (
+          <button
+            key={f}
+            onClick={() => setStatusFilter(f)}
+            style={{
+              padding: "5px 14px",
+              ...pillTone(statusFilter === f),
+              borderRadius: radius.pill,
+              fontSize: size.xs,
+              fontWeight: statusFilter === f ? weight.semibold : weight.regular,
+              cursor: "pointer",
+            }}
+          >
+            {f}
+          </button>
         ))}
-        <span style={{ marginLeft: 'auto', fontSize: size.xs, color: color.text.muted, alignSelf: 'center' }}>{jobs.length} results</span>
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: size.xs,
+            color: color.text.muted,
+            alignSelf: "center",
+          }}
+        >
+          {isPending ? "Loading…" : `${jobs.length} results`}
+        </span>
       </div>
 
       {/* Table */}
-      <div style={{ background: color.surface.base, border: `1px solid ${color.border.base}`, borderRadius: radius['3xl'], overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+      <div
+        style={{
+          background: color.surface.base,
+          border: `1px solid ${color.border.base}`,
+          borderRadius: radius["3xl"],
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ overflowX: "auto" }}>
+          <table
+            style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}
+          >
             <thead>
               <tr style={{ background: color.surface.subtle }}>
-                <th style={{ padding: '10px 16px', width: 36 }}>
-                  <div onClick={toggleAll} style={{ width: 16, height: 16, borderRadius: radius.sm, border: `2px solid ${allSelected ? color.brand.base : color.text.disabled}`, background: allSelected ? color.brand.base : color.surface.base, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {allSelected && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={color.surface.base} strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>}
+                <th style={{ padding: "10px 16px", width: 36 }}>
+                  <div
+                    onClick={toggleAll}
+                    style={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: radius.sm,
+                      border: `2px solid ${
+                        allSelected ? color.brand.base : color.text.disabled
+                      }`,
+                      background: allSelected
+                        ? color.brand.base
+                        : color.surface.base,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {allSelected && (
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke={color.surface.base}
+                        strokeWidth="3"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
                   </div>
                 </th>
-                {['Job Title', 'Category', 'Location', 'Status', 'Published', 'Expiry', 'Clicks', 'Views', 'Actions'].map(h => (
-                  <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: size['2xs'], fontWeight: weight.semibold, color: color.text.muted, textTransform: 'uppercase', letterSpacing: tracking.wide, whiteSpace: 'nowrap' }}>{h}</th>
+                {[
+                  "Job Title",
+                  "Category",
+                  "Location",
+                  "Status",
+                  "Published",
+                  "Expiry",
+                  "Clicks",
+                  "Views",
+                  "Actions",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      padding: "10px 12px",
+                      textAlign: "left",
+                      fontSize: size["2xs"],
+                      fontWeight: weight.semibold,
+                      color: color.text.muted,
+                      textTransform: "uppercase",
+                      letterSpacing: tracking.wide,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {paginated.map((j: AdminJobRow, i: number) => {
-                const isSelected = selected.includes(i)
+              {paginated.map((j: AdminJobRow) => {
+                const isSelected = selected.includes(j.id)
+                const isBusy = busy === j.id
                 return (
-                  <tr key={i} style={{ borderTop: `1px solid ${color.surface.muted}`, background: isSelected ? color.brand.tint : 'none' }}
-                    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = color.surface.hover }}
-                    onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'none' }}
+                  <tr
+                    key={j.id}
+                    style={{
+                      borderTop: `1px solid ${color.surface.muted}`,
+                      background: isSelected ? color.brand.tint : "none",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected)
+                        e.currentTarget.style.background = color.surface.hover
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) e.currentTarget.style.background = "none"
+                    }}
                   >
-                    <td style={{ padding: '12px 16px' }}>
-                      <div onClick={() => setSelected((prev: number[]) => isSelected ? prev.filter(x => x !== i) : [...prev, i])}
-                        style={{ width: 16, height: 16, borderRadius: radius.sm, border: `2px solid ${isSelected ? color.brand.base : color.text.disabled}`, background: isSelected ? color.brand.base : color.surface.base, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {isSelected && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={color.surface.base} strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>}
+                    <td style={{ padding: "12px 16px" }}>
+                      <div
+                        onClick={() =>
+                          setSelected((prev) =>
+                            isSelected
+                              ? prev.filter((x) => x !== j.id)
+                              : [...prev, j.id],
+                          )
+                        }
+                        style={{
+                          width: 16,
+                          height: 16,
+                          borderRadius: radius.sm,
+                          border: `2px solid ${
+                            isSelected ? color.brand.base : color.text.disabled
+                          }`,
+                          background: isSelected
+                            ? color.brand.base
+                            : color.surface.base,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {isSelected && (
+                          <svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke={color.surface.base}
+                            strokeWidth="3"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
                       </div>
                     </td>
-                    <td style={{ padding: '12px 12px' }}>
-                      <div style={{ fontSize: size.sm, fontWeight: weight.semibold, color: color.text.primary }}>{j.title}</div>
-                      <div style={{ fontSize: size['2xs'], color: color.text.muted }}>{j.company}</div>
+                    <td style={{ padding: "12px 12px" }}>
+                      <div
+                        style={{
+                          fontSize: size.sm,
+                          fontWeight: weight.semibold,
+                          color: color.text.primary,
+                        }}
+                      >
+                        {j.title}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: size["2xs"],
+                          color: color.text.muted,
+                        }}
+                      >
+                        {j.company}
+                      </div>
                     </td>
-                    <td style={{ padding: '12px 12px', fontSize: size.xs, color: color.text.secondary, whiteSpace: 'nowrap' }}>{j.category}</td>
-                    <td style={{ padding: '12px 12px', fontSize: size.xs, color: color.text.secondary, whiteSpace: 'nowrap' }}>{j.location}</td>
-                    <td style={{ padding: '12px 12px' }}><StatusPill status={j.status} /></td>
-                    <td style={{ padding: '12px 12px', fontSize: size.xs, color: color.text.secondary, whiteSpace: 'nowrap' }}>{j.published}</td>
-                    <td style={{ padding: '12px 12px', fontSize: size.xs, color: j.expiry !== '—' && new Date(j.expiry) < new Date('2026-08-20') ? color.danger.base : color.text.secondary, whiteSpace: 'nowrap', fontWeight: j.expiry !== '—' && new Date(j.expiry) < new Date('2026-08-20') ? weight.semibold : weight.regular }}>{j.expiry}</td>
-                    <td style={{ padding: '12px 12px', fontSize: size.sm, fontWeight: weight.bold, color: color.brand.base }}>{j.clicks}</td>
-                    <td style={{ padding: '12px 12px', fontSize: size.sm, color: color.text.strong }}>{j.views.toLocaleString()}</td>
-                    <td style={{ padding: '12px 12px' }}>
-                      {deleteConfirm === i ? (
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button onClick={() => { setDeleteConfirm(null); showToast('Job deleted') }} style={{ fontSize: size['2xs'], padding: '4px 8px', border: `1px solid ${color.danger.base}`, background: color.danger.tint, color: color.danger.base, borderRadius: radius.smd, cursor: 'pointer', fontWeight: weight.semibold }}>Confirm</button>
-                          <button onClick={() => setDeleteConfirm(null)} style={{ fontSize: size['2xs'], padding: '4px 8px', border: `1px solid ${color.border.base}`, background: color.surface.base, color: color.text.secondary, borderRadius: radius.smd, cursor: 'pointer' }}>Cancel</button>
+                    <td
+                      style={{
+                        padding: "12px 12px",
+                        fontSize: size.xs,
+                        color: color.text.secondary,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {j.category}
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px 12px",
+                        fontSize: size.xs,
+                        color: color.text.secondary,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {j.location}
+                    </td>
+                    <td style={{ padding: "12px 12px" }}>
+                      <StatusPill status={j.status} />
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px 12px",
+                        fontSize: size.xs,
+                        color: color.text.secondary,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {j.published}
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px 12px",
+                        fontSize: size.xs,
+                        color:
+                          j.expiry !== "—" &&
+                          new Date(j.expiry) < new Date("2026-08-20")
+                            ? color.danger.base
+                            : color.text.secondary,
+                        whiteSpace: "nowrap",
+                        fontWeight:
+                          j.expiry !== "—" &&
+                          new Date(j.expiry) < new Date("2026-08-20")
+                            ? weight.semibold
+                            : weight.regular,
+                      }}
+                    >
+                      {j.expiry}
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px 12px",
+                        fontSize: size.sm,
+                        fontWeight: weight.bold,
+                        color: color.brand.base,
+                      }}
+                    >
+                      {j.clicks}
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px 12px",
+                        fontSize: size.sm,
+                        color: color.text.strong,
+                      }}
+                    >
+                      {j.views.toLocaleString()}
+                    </td>
+                    <td style={{ padding: "12px 12px" }}>
+                      {deleteConfirm === j.id ? (
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button
+                            onClick={() => {
+                              setDeleteConfirm(null)
+                              void run(j.id, "Deleted", () => remove.mutateAsync(j.id))
+                            }}
+                            style={{
+                              fontSize: size["2xs"],
+                              padding: "4px 8px",
+                              border: `1px solid ${color.danger.base}`,
+                              background: color.danger.tint,
+                              color: color.danger.base,
+                              borderRadius: radius.smd,
+                              cursor: "pointer",
+                              fontWeight: weight.semibold,
+                            }}
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirm(null)}
+                            style={{
+                              fontSize: size["2xs"],
+                              padding: "4px 8px",
+                              border: `1px solid ${color.border.base}`,
+                              background: color.surface.base,
+                              color: color.text.secondary,
+                              borderRadius: radius.smd,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Cancel
+                          </button>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', gap: 4 }}>
+                        <div style={{ display: "flex", gap: 4 }}>
                           {[
-                            { label: 'Edit', title: 'Edit' },
-                            { label: '⭐', title: 'Feature' },
-                            { label: '✓', title: 'Verify' },
-                          ].map(a => (
-                            <button key={a.title} title={a.title} onClick={() => showToast(`${a.title} action applied`)}
-                              style={{ fontSize: size['2xs'], padding: '4px 8px', border: `1px solid ${color.border.base}`, background: color.surface.base, color: color.text.secondary, borderRadius: radius.smd, cursor: 'pointer' }}>
+                            {
+                              label: "Edit",
+                              title: "Edit",
+                              run: () => navigate(`/admin/dashboard/add-job?edit=${j.id}`),
+                            },
+                            {
+                              label: "⭐",
+                              title: jobsById.get(j.id)?.featured ? "Unfeature" : "Feature",
+                              run: () =>
+                                run(j.id, "Feature", () =>
+                                  feature.mutateAsync({
+                                    id: j.id,
+                                    featured: !jobsById.get(j.id)?.featured,
+                                  }),
+                                ),
+                            },
+                            {
+                              label: "✓",
+                              title: jobsById.get(j.id)?.verified ? "Unverify" : "Verify",
+                              run: () =>
+                                run(j.id, "Verify", () =>
+                                  verify.mutateAsync({
+                                    id: j.id,
+                                    verified: !jobsById.get(j.id)?.verified,
+                                  }),
+                                ),
+                            },
+                            ...(j.status === "published"
+                              ? [
+                                  {
+                                    label: "⌛",
+                                    title: "Expire",
+                                    run: () =>
+                                      run(j.id, "Expire", () =>
+                                        expire.mutateAsync({ id: j.id }),
+                                      ),
+                                  },
+                                ]
+                              : [
+                                  {
+                                    label: "▶",
+                                    title: "Publish",
+                                    run: () =>
+                                      run(j.id, "Publish", () =>
+                                        publish.mutateAsync({ id: j.id }),
+                                      ),
+                                  },
+                                ]),
+                          ].map((a) => (
+                            <button
+                              key={a.title}
+                              title={a.title}
+                              disabled={isBusy}
+                              onClick={a.run}
+                              style={{
+                                fontSize: size["2xs"],
+                                padding: "4px 8px",
+                                border: `1px solid ${color.border.base}`,
+                                background: color.surface.base,
+                                color: color.text.secondary,
+                                borderRadius: radius.smd,
+                                cursor: "pointer",
+                              }}
+                            >
                               {a.label}
                             </button>
                           ))}
-                          <button title="Delete" onClick={() => setDeleteConfirm(i)}
-                            style={{ fontSize: size['2xs'], padding: '4px 8px', border: `1px solid ${color.danger.border}`, background: color.danger.tint, color: color.danger.base, borderRadius: radius.smd, cursor: 'pointer' }}>
+                          <button
+                            title="Delete"
+                            onClick={() => setDeleteConfirm(j.id)}
+                            style={{
+                              fontSize: size["2xs"],
+                              padding: "4px 8px",
+                              border: `1px solid ${color.danger.border}`,
+                              background: color.danger.tint,
+                              color: color.danger.base,
+                              borderRadius: radius.smd,
+                              cursor: "pointer",
+                            }}
+                          >
                             ✕
                           </button>
                         </div>
@@ -158,10 +678,32 @@ export default function JobsSection() {
         </div>
 
         {/* Pagination */}
-        <div style={{ padding: '12px 20px', borderTop: `1px solid ${color.surface.muted}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: size.xs, color: color.text.muted }}>Showing {Math.min(paginated.length, jobs.length)} of {jobs.length}</span>
+        <div
+          style={{
+            padding: "12px 20px",
+            borderTop: `1px solid ${color.surface.muted}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <span style={{ fontSize: size.xs, color: color.text.muted }}>
+            Showing {Math.min(paginated.length, jobs.length)} of {jobs.length}
+          </span>
           {jobs.length > paginated.length && (
-            <button onClick={() => setPage((p: number) => p + 1)} style={{ fontSize: size.sm, padding: '6px 16px', border: `1px solid ${color.border.base}`, borderRadius: radius.lg, background: color.surface.base, color: color.text.strong, cursor: 'pointer', fontWeight: weight.medium }}>
+            <button
+              onClick={() => setPage((p: number) => p + 1)}
+              style={{
+                fontSize: size.sm,
+                padding: "6px 16px",
+                border: `1px solid ${color.border.base}`,
+                borderRadius: radius.lg,
+                background: color.surface.base,
+                color: color.text.strong,
+                cursor: "pointer",
+                fontWeight: weight.medium,
+              }}
+            >
               Load more
             </button>
           )}
@@ -170,4 +712,3 @@ export default function JobsSection() {
     </div>
   )
 }
-

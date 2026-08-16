@@ -1,12 +1,77 @@
 import { useState } from 'react'
 import { actionTone, adminStatusTone, color, fontFamily, pillTone, radius, shadow, size, tracking, weight } from '@/design-system'
-import { ACTIVITY_FEED, CATEGORIES_DATA, CONVERSION_DATA, LOCATIONS_DATA, METRIC_CARDS, REPORTS_DATA, SEARCH_KEYWORDS, SOURCES_DATA, TOP_JOBS_TABLE, TOP_LOCATION_SHARE } from '@/data/admin.mock'
+import { useAnalyticsOverview, useLocations, useSearchAnalytics } from '@/hooks/queries'
+import { describeError } from '@/lib/http'
+import { ErrorPanel } from '@/components/QueryState'
+
+const pct = (rate: number) => `${(rate * 100).toFixed(1)}%`
 import { FField, FormSection, FRow, IS, StatusPill } from '@/components/ui/AdminForm'
 import { useToast } from '@/stores/useToastStore'
 
 export default function AnalyticsSection() {
-  const CONV_DATA = CONVERSION_DATA
-  const TOP_LOCS = TOP_LOCATION_SHARE
+  const overview = useAnalyticsOverview()
+  const search = useSearchAnalytics()
+  const locations = useLocations()
+
+  const totals = overview.data?.totals
+  const rates = overview.data?.rates
+
+  /**
+   * The funnel, computed from the totals rather than stored.
+   *
+   * The mock carried a hardcoded "vs industry avg 12%" comparison. There is no
+   * industry benchmark in this system and inventing one on a dashboard people
+   * make decisions from would be worse than omitting it.
+   */
+  const CONV_DATA = [
+    {
+      label: 'Views → Apply Click',
+      rate: pct(rates?.view_to_apply ?? 0),
+      count: `${(totals?.apply_clicks ?? 0).toLocaleString()} clicks`,
+      bar: Math.min(100, Math.round((rates?.view_to_apply ?? 0) * 100)),
+    },
+    {
+      label: 'Save Rate',
+      rate: pct(rates?.save_rate ?? 0),
+      count: `${(totals?.saves ?? 0).toLocaleString()} saves`,
+      bar: Math.min(100, Math.round((rates?.save_rate ?? 0) * 100)),
+    },
+    {
+      label: 'Share Rate',
+      rate: pct(totals?.job_views ? (totals.shares ?? 0) / totals.job_views : 0),
+      count: `${(totals?.shares ?? 0).toLocaleString()} shares`,
+      bar: Math.min(100, Math.round(totals?.job_views ? ((totals.shares ?? 0) / totals.job_views) * 100 : 0)),
+    },
+    {
+      label: 'Searches With No Results',
+      rate: pct(rates?.zero_result_rate ?? 0),
+      count: `${(search.data?.zero_result_searches ?? 0).toLocaleString()} searches`,
+      bar: Math.min(100, Math.round((rates?.zero_result_rate ?? 0) * 100)),
+    },
+  ]
+
+  /**
+   * Share of listings by location.
+   *
+   * Derived from the maintained `job_count` on each location rather than from
+   * events: it answers "where is the catalogue" — which is the question the
+   * panel's title asks — and does not go blank on a quiet traffic day.
+   */
+  const locationTotal = (locations.data ?? []).reduce((sum, l) => sum + l.count, 0)
+  const TOP_LOCS = (locations.data ?? [])
+    .filter(l => l.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+    .map(l => ({
+      loc: l.label.split(',')[0]?.trim() ?? l.label,
+      pct: locationTotal ? Math.round((l.count / locationTotal) * 100) : 0,
+    }))
+
+  const SEARCH_KEYWORDS = (search.data?.top_queries ?? []).map(q => ({ kw: q.query, count: q.count }))
+
+  if (overview.isError) {
+    return <ErrorPanel message={describeError(overview.error)} onRetry={() => void overview.refetch()} />
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

@@ -1,12 +1,27 @@
 import { useState } from 'react'
 import { actionTone, adminStatusTone, color, fontFamily, pillTone, radius, shadow, size, tracking, weight } from '@/design-system'
-import { ACTIVITY_FEED, CATEGORIES_DATA, CONVERSION_DATA, LOCATIONS_DATA, METRIC_CARDS, REPORTS_DATA, SEARCH_KEYWORDS, SOURCES_DATA, TOP_JOBS_TABLE, TOP_LOCATION_SHARE } from '@/data/admin.mock'
+import { useLocations } from '@/hooks/queries'
+import { describeError } from '@/lib/http'
+import { ErrorPanel } from '@/components/QueryState'
 import { FField, FormSection, FRow, IS, StatusPill } from '@/components/ui/AdminForm'
 import { useToast } from '@/stores/useToastStore'
 
 export default function LocationsSection() {
   const showToast = useToast()
-  const LOCATIONS = LOCATIONS_DATA
+  const { data, isError, error, refetch } = useLocations()
+  const LOCATIONS = (data ?? []).map(l => {
+    const [city, region] = l.label.split(',').map(part => part.trim())
+    return {
+      name: city ?? l.label,
+      region: region ?? '—',
+      type: l.slug.startsWith('remote') ? 'Remote' : 'City',
+      jobs: l.count,
+    }
+  })
+
+  if (isError) {
+    return <ErrorPanel message={describeError(error)} onRetry={() => void refetch()} />
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

@@ -668,3 +668,32 @@ def test_suggest_is_not_swallowed_by_the_slug_route(client):
 
 def test_suggest_requires_a_usable_prefix(client):
     assert client.get(f"{JOBS}/suggest", params={"q": "a"}).status_code == 422
+
+
+def test_ids_filter_resolves_a_client_held_collection(client, world):
+    """The saved-jobs page keeps ids in local storage. Without this it would
+    need one request per saved listing.
+    """
+    t = token_for(client, ADMIN_EMAIL)
+    created = []
+    for title in ("Saved Role A", "Saved Role B", "Unsaved Role C"):
+        job = client.post(ADMIN_JOBS, json=payload(world, title=title), headers=auth(t)).json()
+        client.post(f"{ADMIN_JOBS}/{job['id']}/publish", headers=auth(t))
+        created.append(job)
+
+    wanted = [created[0]["id"], created[1]["id"]]
+    got = client.get(JOBS, params=[("ids", i) for i in wanted] + [("per_page", 50)]).json()
+
+    assert got["total"] == 2
+    assert {i["id"] for i in got["items"]} == set(wanted)
+
+
+def test_ids_filter_still_hides_unpublished_listings(client, world):
+    """The id set narrows the public query; it does not bypass it. A draft id
+    held from an earlier session must not become readable by asking for it.
+    """
+    t = token_for(client, ADMIN_EMAIL)
+    draft = client.post(ADMIN_JOBS, json=payload(world, title="Draft Role"), headers=auth(t)).json()
+
+    got = client.get(JOBS, params={"ids": draft["id"]}).json()
+    assert got["total"] == 0

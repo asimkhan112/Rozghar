@@ -15,6 +15,7 @@ from app.api import seo as seo_router
 from app.api.middleware import register_middleware
 from app.api.v1.routers import admin_admins as admin_admins_router
 from app.api.v1.routers import admin_analytics as admin_analytics_router
+from app.api.v1.routers import admin_audit as admin_audit_router
 from app.api.v1.routers import admin_jobs as admin_jobs_router
 from app.api.v1.routers import admin_reports as admin_reports_router
 from app.api.v1.routers import analytics as analytics_router
@@ -165,6 +166,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_reports_router.router, prefix=settings.api_v1_prefix)
     app.include_router(admin_analytics_router.router, prefix=settings.api_v1_prefix)
     app.include_router(admin_admins_router.router, prefix=settings.api_v1_prefix)
+    app.include_router(admin_audit_router.router, prefix=settings.api_v1_prefix)
     app.include_router(taxonomy_router.admin, prefix=settings.api_v1_prefix)
 
     return app

@@ -1,10 +1,32 @@
 import { useState } from 'react'
 import { actionTone, adminStatusTone, color, fontFamily, pillTone, radius, shadow, size, tracking, weight } from '@/design-system'
-import { ACTIVITY_FEED, CATEGORIES_DATA, CONVERSION_DATA, LOCATIONS_DATA, METRIC_CARDS, REPORTS_DATA, SEARCH_KEYWORDS, SOURCES_DATA, TOP_JOBS_TABLE, TOP_LOCATION_SHARE } from '@/data/admin.mock'
+import { useSourcePerformance } from '@/hooks/queries'
+import { describeError } from '@/lib/http'
+import { ErrorPanel } from '@/components/QueryState'
 import { FField, FormSection, FRow, IS, StatusPill } from '@/components/ui/AdminForm'
 import { useToast } from '@/stores/useToastStore'
 
 export default function SourcesSection() {
+  const { data, isError, error, refetch } = useSourcePerformance()
+  // Real funnel numbers per feed: how many listings it published, and what
+  // they actually earned.
+  const SOURCES_DATA = (data ?? []).map(s => ({
+    name: s.name,
+    type: s.slug === 'manual' ? 'Manual' : 'Scraper',
+    jobs: s.jobs,
+    status: s.jobs > 0 ? 'Active' : 'Idle',
+    lastRun: `${s.apply_clicks.toLocaleString()} applies`,
+    clicks: s.apply_clicks,
+    // Apply clicks per view, as a whole-number percentage. A feed that
+    // publishes thousands of listings nobody clicks is visible here and
+    // nowhere else.
+    ctr: Math.round(s.ctr * 100),
+  }))
+
+  if (isError) {
+    return <ErrorPanel message={describeError(error)} onRetry={() => void refetch()} />
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ background: color.surface.base, border: `1px solid ${color.border.base}`, borderRadius: radius['3xl'], overflow: 'hidden' }}>
@@ -32,7 +54,7 @@ export default function SourcesSection() {
                 <td style={{ padding: '14px 16px', fontSize: size.sm, color: color.text.strong }}>{s.jobs.toLocaleString()}</td>
                 <td style={{ padding: '14px 16px', fontSize: size.sm, fontWeight: weight.semibold, color: color.text.primary }}>{s.clicks.toLocaleString()}</td>
                 <td style={{ padding: '14px 16px' }}>
-                  <span style={{ fontSize: size.sm, fontWeight: weight.bold, color: parseFloat(s.ctr) > 15 ? color.success.base : color.brand.base }}>{s.ctr}</span>
+                  <span style={{ fontSize: size.sm, fontWeight: weight.bold, color: s.ctr > 15 ? color.success.base : color.brand.base }}>{s.ctr}%</span>
                 </td>
                 <td style={{ padding: '14px 16px' }}>
                   <span style={{ fontSize: size['2xs'], padding: '2px 8px', borderRadius: radius.sm, fontWeight: weight.semibold, background: color.success.tint, color: color.success.text }}>{s.status}</span>

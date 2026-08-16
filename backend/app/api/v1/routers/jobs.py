@@ -63,6 +63,10 @@ async def list_jobs(
     verified: bool | None = None,
     salary_min: Annotated[Decimal | None, Query(ge=0)] = None,
     posted_within_days: Annotated[int | None, Query(ge=1, le=365)] = None,
+    ids: Annotated[
+        list[UUID] | None,
+        Query(description="Resolve a specific set of listings, e.g. saved jobs"),
+    ] = None,
     sort: SortOption = "recent",
     page: Annotated[int, Query(ge=1)] = 1,
     per_page: Annotated[int, Query(ge=1, le=50)] = 20,
@@ -80,6 +84,9 @@ async def list_jobs(
         verified=verified,
         salary_min=salary_min,
         posted_within_days=posted_within_days,
+        # `None` means unconstrained; an empty list means "resolve nothing",
+        # which is what an empty saved-jobs list must return.
+        ids=tuple(ids) if ids is not None else None,
     )
 
     if q and q.strip():

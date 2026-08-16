@@ -1,11 +1,102 @@
 import { useState } from 'react'
 import { actionTone, activityTone, adminStatusTone, color, fontFamily, pillTone, radius, shadow, size, tracking, weight } from '@/design-system'
-import { ACTIVITY_FEED, CATEGORIES_DATA, CONVERSION_DATA, LOCATIONS_DATA, METRIC_CARDS, REPORTS_DATA, SEARCH_KEYWORDS, SOURCES_DATA, TOP_JOBS_TABLE, TOP_LOCATION_SHARE } from '@/data/admin.mock'
+import {
+  useAdminJobs,
+  useAnalyticsOverview,
+  useAuditFeed,
+  useReports,
+} from '@/hooks/queries'
+import { describeError } from '@/lib/http'
+import { ErrorPanel } from '@/components/QueryState'
+
+/**
+ * Audit verbs → the sentence a person reads.
+ *
+ * The trail stores `job.publish`; a dashboard that renders that literally is a
+ * log viewer, not a feed. Anything unmapped falls back to the raw verb rather
+ * than being hidden — an unrecognised action is exactly what someone should
+ * see.
+ */
+const ACTION_TEXT: Record<string, string> = {
+  'job.create': 'created a listing',
+  'job.update': 'edited a listing',
+  'job.publish': 'published a listing',
+  'job.expire': 'expired a listing',
+  'job.verify': 'verified a listing',
+  'job.feature': 'featured a listing',
+  'job.delete': 'removed a listing',
+  'report.review': 'picked up a report',
+  'report.resolve': 'resolved a report',
+  'report.dismiss': 'dismissed a report',
+  'report.reopen': 'reopened a report',
+  'admin.create': 'created an admin account',
+  'admin.role_change': 'changed an account role',
+  'admin.deactivate': 'deactivated an account',
+}
+
+const ACTION_TONE: Record<string, 'success' | 'brand' | 'warning' | 'danger' | 'accent'> = {
+  'job.create': 'success',
+  'job.publish': 'success',
+  'job.expire': 'warning',
+  'job.delete': 'danger',
+  'report.resolve': 'success',
+  'report.dismiss': 'warning',
+  'report.reopen': 'danger',
+}
+
+/** `2026-08-16T09:12:00Z` → `18 min ago`. */
+function ago(iso: string): string {
+  const elapsed = Date.now() - Date.parse(iso)
+  const minutes = Math.floor(elapsed / 60000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} hr ago`
+  return `${Math.floor(hours / 24)} d ago`
+}
 import { FField, FormSection, FRow, IS, StatusPill } from '@/components/ui/AdminForm'
 import { useToast } from '@/stores/useToastStore'
 
 export default function Dashboard() {
   const showToast = useToast()
+  const overview = useAnalyticsOverview()
+  const audit = useAuditFeed(7)
+  const openReports = useReports({ status: 'open', per_page: 1 })
+  const allJobs = useAdminJobs({ per_page: 1 })
+  const publishedJobs = useAdminJobs({ per_page: 1, status: 'published' })
+
+  const totals = overview.data?.totals
+  const loading = overview.isPending || allJobs.isPending
+
+  /** Counters the dashboard has real numbers for. The mock's per-card change
+   *  lines ("+1,240 this month") were invented; where the API cannot supply a
+   *  comparison, the card carries a fact it does have. */
+  const METRIC_CARDS = [
+    { label: 'Total Jobs', value: allJobs.data?.total, change: `${publishedJobs.data?.total ?? 0} published`, trend: 'up' as const, icon: '📋' },
+    { label: 'Job Views', value: totals?.job_views, change: 'Last 30 days', trend: 'up' as const, icon: '👀' },
+    { label: 'Apply Clicks', value: totals?.apply_clicks, change: overview.data ? `${Math.round((overview.data.rates.view_to_apply ?? 0) * 100)}% of views` : '—', trend: 'up' as const, icon: '👆' },
+    { label: 'Searches', value: totals?.searches, change: `${totals?.zero_result_searches ?? 0} with no results`, trend: (totals?.zero_result_searches ? 'warn' : 'up') as 'up' | 'warn', icon: '🔍' },
+    { label: 'Saves', value: totals?.saves, change: 'Last 30 days', trend: 'up' as const, icon: '🔖' },
+    { label: 'Open Reports', value: openReports.data?.total, change: openReports.data?.total ? 'Need review' : 'Queue clear', trend: (openReports.data?.total ? 'warn' : 'up') as 'up' | 'warn', icon: '🚩' },
+  ]
+
+  const TOP_JOBS_TABLE = (overview.data?.top_jobs ?? []).map(j => ({
+    title: j.title, company: j.company_name, clicks: j.apply_clicks, views: j.views, saved: 0, status: 'published',
+  }))
+
+  const ACTIVITY_FEED = (audit.data?.items ?? []).map(entry => ({
+    type: entry.action,
+    msg: `${entry.actor?.full_name ?? 'System'} ${ACTION_TEXT[entry.action] ?? entry.action}`,
+    time: ago(entry.created_at),
+    tone: ACTION_TONE[entry.action] ?? 'brand',
+  }))
+
+  const SEARCH_KEYWORDS = (overview.data?.top_queries ?? []).map(q => ({ kw: q.query, count: q.count }))
+
+  if (overview.isError) {
+    return <ErrorPanel message={describeError(overview.error)} onRetry={() => void overview.refetch()} />
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Metric grid */}
@@ -16,7 +107,7 @@ export default function Dashboard() {
               <span style={{ fontSize: size.xs, color: color.text.secondary, fontWeight: weight.medium }}>{m.label}</span>
               <span style={{ fontSize: size.lg }}>{m.icon}</span>
             </div>
-            <div style={{ fontSize: size['6xl'], fontWeight: weight.extrabold, color: color.text.primary, letterSpacing: tracking.tighter, marginBottom: 4 }}>{m.value}</div>
+            <div style={{ fontSize: size['6xl'], fontWeight: weight.extrabold, color: color.text.primary, letterSpacing: tracking.tighter, marginBottom: 4 }}>{loading ? '—' : (m.value ?? 0).toLocaleString()}</div>
             <div style={{ fontSize: size['2xs'], color: m.trend === 'warn' ? color.warning.base : color.success.base, fontWeight: weight.medium }}>
               {m.trend === 'up' ? '↑ ' : '⚠ '}{m.change}
             </div>

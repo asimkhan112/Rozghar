@@ -12,7 +12,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import Select, func, select, update
+from sqlalchemy import Select, false, func, select, update
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import EmploymentType, ExperienceLevel, JobStatus, WorkType
@@ -42,6 +42,10 @@ class JobFilters:
     verified: bool | None = None
     salary_min: Decimal | None = None
     posted_within_days: int | None = None
+    #: Explicit id set, for rendering a client-held collection — the saved-jobs
+    #: page keeps ids in local storage and needs them resolved in one request
+    #: rather than one request per saved listing.
+    ids: tuple[UUID, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -102,6 +106,10 @@ class JobRepository(BaseRepository[Job]):
                 (Job.salary_currency == "USD", USD_TO_PKR), else_=1
             )
             stmt = stmt.where(normalised >= filters.salary_min)
+        if filters.ids is not None:
+            # An empty set means "nothing was asked for", not "no constraint" —
+            # without this an empty saved list would return the whole catalogue.
+            stmt = stmt.where(Job.id.in_(filters.ids) if filters.ids else false())
         if filters.posted_within_days is not None:
             cutoff = datetime.now(UTC) - __import__("datetime").timedelta(
                 days=filters.posted_within_days

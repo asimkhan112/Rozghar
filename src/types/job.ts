@@ -6,25 +6,35 @@
  * adding a work type in one place is a compile error everywhere it is handled.
  */
 
-export const WORK_TYPES = ['Remote', 'On-site', 'Hybrid'] as const
-export type WorkType = (typeof WORK_TYPES)[number]
+export const WORK_TYPES = ["Remote", "On-site", "Hybrid"] as const
+export type WorkType = typeof WORK_TYPES[number]
 
-export const EMPLOYMENT_TYPES = ['Full-time', 'Part-time', 'Contract', 'Internship'] as const
-export type EmploymentType = (typeof EMPLOYMENT_TYPES)[number]
+export const EMPLOYMENT_TYPES = [
+  "Full-time",
+  "Part-time",
+  "Contract",
+  "Internship",
+] as const
+export type EmploymentType = typeof EMPLOYMENT_TYPES[number]
 
 /** Public-facing marketing badge shown on cards and detail pages. */
-export const JOB_BADGES = ['fresh', 'verified', 'featured', 'expiring'] as const
-export type JobBadge = (typeof JOB_BADGES)[number]
+export const JOB_BADGES = ["fresh", "verified", "featured", "expiring"] as const
+export type JobBadge = typeof JOB_BADGES[number]
 
 /** Editorial lifecycle state, owned by the admin. Never shown on the public site. */
-export const JOB_STATUSES = ['draft', 'published', 'expired', 'archived'] as const
-export type JobStatus = (typeof JOB_STATUSES)[number]
+export const JOB_STATUSES = [
+  "draft",
+  "published",
+  "expired",
+  "archived",
+] as const
+export type JobStatus = typeof JOB_STATUSES[number]
 
-export const SALARY_PERIODS = ['month', 'year', 'hour'] as const
-export type SalaryPeriod = (typeof SALARY_PERIODS)[number]
+export const SALARY_PERIODS = ["month", "year", "hour"] as const
+export type SalaryPeriod = typeof SALARY_PERIODS[number]
 
-export const CURRENCIES = ['PKR', 'USD'] as const
-export type Currency = (typeof CURRENCIES)[number]
+export const CURRENCIES = ["PKR", "USD"] as const
+export type Currency = typeof CURRENCIES[number]
 
 /** Aggregate engagement counters. Served by the analytics endpoint in Phase 8. */
 export interface JobMetrics {
@@ -89,10 +99,14 @@ export interface Job {
 }
 
 /** Payload accepted by the admin create/edit form. */
-export type JobInput = Omit<Job, 'id' | 'slug' | 'metrics' | 'postedDate'>
+export type JobInput = Omit<Job, "id" | "slug" | "metrics" | "postedDate">
 
 export interface JobCategory {
+  /** Primary key. Needed when writing — the job form assigns a category by id. */
+  id: string
   name: string
   count: number
   icon: string
+  /** URL segment the API filters on. Owned by the backend, never derived. */
+  slug: string
 }

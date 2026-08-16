@@ -1,13 +1,34 @@
 import { useState } from 'react'
 import { actionTone, adminStatusTone, color, fontFamily, pillTone, radius, shadow, size, tracking, weight } from '@/design-system'
-import { ACTIVITY_FEED, CATEGORIES_DATA, CONVERSION_DATA, LOCATIONS_DATA, METRIC_CARDS, REPORTS_DATA, SEARCH_KEYWORDS, SOURCES_DATA, TOP_JOBS_TABLE, TOP_LOCATION_SHARE } from '@/data/admin.mock'
+import { useCategories } from '@/hooks/queries'
+import { describeError } from '@/lib/http'
+import { ErrorPanel } from '@/components/QueryState'
 import { FField, FormSection, FRow, IS, StatusPill } from '@/components/ui/AdminForm'
 import { useToast } from '@/stores/useToastStore'
 
 export default function CategoriesSection() {
+  const { data, isPending, isError, error, refetch } = useCategories()
+  const categories = data ?? []
+  // Popularity as a share of the busiest category, so the bar means something
+  // relative rather than being a number somebody typed.
+  const busiest = Math.max(1, ...categories.map(c => c.count))
+  const CATEGORIES_DATA = categories.map(c => ({
+    name: c.name,
+    count: c.count,
+    // Every category the public endpoint returns is active — it filters
+    // inactive ones out — so the pill reflects that rather than inventing a
+    // second state the data cannot distinguish.
+    status: 'Active',
+    popularity: Math.round((c.count / busiest) * 100),
+  }))
+
   const showToast = useToast()
   const [adding, setAdding] = useState(false)
   const [newCat, setNewCat] = useState('')
+
+  if (isError) {
+    return <ErrorPanel message={describeError(error)} onRetry={() => void refetch()} />
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

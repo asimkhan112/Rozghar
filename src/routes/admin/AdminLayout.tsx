@@ -1,6 +1,6 @@
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { color, fontFamily, linkReset, radius, shadow, size, weight } from '@/design-system'
-import { NAV_ITEMS } from '@/data/admin.mock'
+import { NAV_ITEMS } from './navItems'
 import { useAdminSidebarOpen, useSetAdminSidebarOpen } from '@/stores/usePreferencesStore'
 import { useSignOut } from '@/stores/useAuthStore'
 import { useToastMessage } from '@/stores/useToastStore'
