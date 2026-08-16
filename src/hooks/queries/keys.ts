@@ -28,7 +28,13 @@ export const queryKeys = {
     /** The saved-jobs page: an explicit id set rather than a filter. */
     byIds: (ids: string[]) =>
       [...queryKeys.jobs.all, "by-ids", [...ids].sort()] as const,
-    suggestions: (q: string) => [...queryKeys.jobs.all, "suggest", q] as const,
+  },
+  /** Grouped autocomplete. Keyed by scope as well as query: the admin variant
+   *  includes drafts, and must never serve its rows to a public reader from a
+   *  shared cache entry. */
+  suggest: {
+    all: ["suggest"] as const,
+    query: (scope: "public" | "admin", q: string) => ["suggest", scope, q] as const,
   },
   admin: {
     all: ['admin'] as const,

@@ -53,6 +53,15 @@ class Category(UUIDPkMixin, TimestampMixin, Base):
     __table_args__ = (
         CheckConstraint("job_count >= 0", name="job_count_non_negative"),
         Index("ix_categories_is_active_sort_order", "is_active", "sort_order"),
+        # Autocomplete matches this column directly, so it needs its own
+        # trigram index — the composite indexes above cannot serve a fuzzy
+        # match on the display text.
+        Index(
+            "ix_categories_name_trgm",
+            "name",
+            postgresql_using="gin",
+            postgresql_ops={"name": "gin_trgm_ops"},
+        ),
     )
 
 
@@ -83,6 +92,15 @@ class Location(UUIDPkMixin, TimestampMixin, Base):
         CheckConstraint("job_count >= 0", name="job_count_non_negative"),
         Index("ix_locations_country_city", "country", "city"),
         Index("ix_locations_is_remote", "is_remote", postgresql_where=text("is_remote")),
+        # Autocomplete matches this column directly, so it needs its own
+        # trigram index — the composite indexes above cannot serve a fuzzy
+        # match on the display text.
+        Index(
+            "ix_locations_display_name_trgm",
+            "display_name",
+            postgresql_using="gin",
+            postgresql_ops={"display_name": "gin_trgm_ops"},
+        ),
     )
 
 
@@ -113,7 +131,18 @@ class Source(UUIDPkMixin, TimestampMixin, Base):
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    __table_args__ = (Index("ix_sources_is_active_type", "is_active", "type"),)
+    __table_args__ = (
+        Index("ix_sources_is_active_type", "is_active", "type"),
+        # Autocomplete matches this column directly, so it needs its own
+        # trigram index — the composite indexes above cannot serve a fuzzy
+        # match on the display text.
+        Index(
+            "ix_sources_name_trgm",
+            "name",
+            postgresql_using="gin",
+            postgresql_ops={"name": "gin_trgm_ops"},
+        ),
+    )
 
 
 __all__ = ["Category", "Location", "Source"]

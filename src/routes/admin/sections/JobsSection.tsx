@@ -16,6 +16,7 @@ import { StatusPill } from "@/components/ui/AdminForm"
 import { useToast } from "@/stores/useToastStore"
 import {
   useAdminJobs,
+  useSuggest,
   useDeleteJob,
   useExpireJob,
   useFeatureJob,
@@ -27,6 +28,7 @@ import { ErrorPanel } from "@/components/QueryState"
 import { toAdminRow } from "../adminRow"
 import type { AdminJobRow } from "@/types/admin"
 import Icon from "@/components/Icon"
+import SearchSuggest, { type SuggestChoice, useSuggestNavigation } from "@/components/SearchSuggest"
 
 /**
  * Admin jobs table.
@@ -39,6 +41,31 @@ export default function JobsSection() {
   const navigate = useNavigate()
 
   const [search, setSearch] = useState("")
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  // The admin variant: includes drafts and expired listings, and adds sources.
+  const suggest = useSuggest(search, { admin: true })
+
+  /** Every group narrows the table rather than navigating: an editor working
+   *  the queue wants the list filtered, not to be thrown onto another screen.
+   *  Jobs are the exception — picking a specific listing opens it for edit. */
+  const applySuggestion = ({ group, item }: SuggestChoice) => {
+    setSuggestOpen(false)
+    setPage(1)
+    if (group === "jobs" && item.slug) {
+      const match = (data?.items ?? []).find(j => j.slug === item.slug)
+      if (match) {
+        navigate(`/admin/dashboard/add-job?edit=${match.id}`)
+        return
+      }
+    }
+    setSearch(item.text)
+  }
+
+  const nav = useSuggestNavigation(suggest.groups, {
+    open: suggestOpen,
+    onChoose: applySuggestion,
+    onDismiss: () => setSuggestOpen(false),
+  })
   const [statusFilter, setStatusFilter] = useState("All")
   // Ids, not row indices. Indices are positions in a filtered, paginated view
   // that shifts under the selection the moment a mutation lands — selecting
@@ -184,10 +211,9 @@ export default function JobsSection() {
           flexWrap: "wrap",
         }}
       >
+        <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
         <div
           style={{
-            flex: 1,
-            minWidth: 200,
             display: "flex",
             alignItems: "center",
             gap: 8,
@@ -210,9 +236,33 @@ export default function JobsSection() {
           </svg>
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search jobs or companies…"
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setSuggestOpen(true)
+            }}
+            onFocus={() => setSuggestOpen(true)}
+            onKeyDown={(e) => {
+              nav.onKeyDown(e)
+              if (e.key === "Enter" && !e.defaultPrevented) setSuggestOpen(false)
+            }}
+            role="combobox"
+            aria-expanded={suggestOpen}
+            aria-autocomplete="list"
+            placeholder="Search jobs, companies, locations, sources…"
             style={bareInput(size.sm, { width: "100%" })}
+          />
+        </div>
+          <SearchSuggest
+            query={search}
+            groups={suggest.groups}
+            choices={nav.choices}
+            active={nav.active}
+            onActiveChange={nav.setActive}
+            open={suggestOpen && suggest.enabled}
+            loading={suggest.isFetching}
+            onChoose={applySuggestion}
+            onDismiss={() => setSuggestOpen(false)}
+            showBadges
           />
         </div>
         {selected.length > 0 && (

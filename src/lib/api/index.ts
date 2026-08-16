@@ -1,4 +1,5 @@
 export * from "./adapters"
 export * from "./jobs"
+export * from "./suggest"
 export * from "./taxonomy"
 export type * from "./types"

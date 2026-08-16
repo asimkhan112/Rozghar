@@ -39,6 +39,7 @@ from app.db.database import SessionFactory
 from app.repositories.analytics_repo import AnalyticsRepository
 from app.repositories.job_repo import JobRepository
 from app.repositories.session_repo import SessionRepository
+from app.repositories.suggest_repo import SuggestRepository
 from app.services.analytics_service import AnalyticsService
 from app.services.metrics_service import MetricsService
 
@@ -332,6 +333,29 @@ async def alert_on_reports(session: AsyncSession) -> dict[str, Any]:
     return {"flagged": len(flagged), "threshold": threshold, "jobs": flagged[:20]}
 
 
+# --- 7. autocomplete vocabulary -------------------------------------------
+
+
+async def refresh_suggestions(session: AsyncSession) -> dict[str, Any]:
+    """Rebuild the two materialised vocabularies the typeahead reads.
+
+    Neither can be queried live inside the endpoint's 100ms budget. Skills are
+    a JSONB array on `jobs` with no index a per-keystroke unnest could use;
+    query popularity is an aggregate over a table partitioned by month. Both
+    change on the scale of hours, not keystrokes, so they are rebuilt here and
+    read as plain indexed tables on the request path.
+
+    A rebuild rather than an incremental update, because both sources can lose
+    rows: a skill nobody lists any more, and a query nobody runs any more, must
+    both stop being suggested.
+    """
+    repo = SuggestRepository(session)
+    skills = await repo.rebuild_skill_terms()
+    queries = await repo.rebuild_popular_queries()
+    await session.commit()
+    return {"skill_terms": skills, "popular_queries": queries}
+
+
 #: Every task, by name. The scheduler registers from this and the CLI runs
 #: from it, so there is exactly one list to keep current.
 TASKS: dict[str, Callable[[AsyncSession], Awaitable[dict[str, Any]]]] = {
@@ -341,6 +365,7 @@ TASKS: dict[str, Callable[[AsyncSession], Awaitable[dict[str, Any]]]] = {
     "prune_telemetry": prune_telemetry,
     "ensure_partitions": ensure_partitions,
     "alert_on_reports": alert_on_reports,
+    "refresh_suggestions": refresh_suggestions,
 }
 
 

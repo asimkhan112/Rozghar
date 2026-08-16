@@ -61,6 +61,11 @@ SCHEDULE: list[tuple[str, Any, str]] = [
         IntervalTrigger(minutes=30),
         "flag listings that have reached the open-report threshold",
     ),
+    (
+        "refresh_suggestions",
+        IntervalTrigger(minutes=20),
+        "rebuild the autocomplete skill and popular-query vocabularies",
+    ),
 ]
 
 

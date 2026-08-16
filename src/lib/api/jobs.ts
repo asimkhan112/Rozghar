@@ -92,10 +92,3 @@ export async function fetchJob(
   }
 }
 
-/** Typeahead. Returns bare strings — a suggestion needs no more than its text. */
-export function fetchSuggestions(
-  q: string,
-  signal?: AbortSignal,
-): Promise<string[]> {
-  return api.get<string[]>("/jobs/suggest", { params: { q }, signal })
-}

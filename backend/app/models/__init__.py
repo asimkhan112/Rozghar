@@ -13,6 +13,7 @@ from app.models.job import Job
 from app.models.rbac import Permission, Role, role_permissions
 from app.models.report import Report
 from app.models.social import JobSocialAsset
+from app.models.suggest import PopularQuery, SkillTerm
 from app.models.taxonomy import Category, Location, Source
 
 __all__ = [
@@ -28,9 +29,11 @@ __all__ = [
     "JobSocialAsset",
     "Location",
     "Permission",
+    "PopularQuery",
     "Report",
     "Role",
     "SearchLog",
+    "SkillTerm",
     "Source",
     "role_permissions",
 ]

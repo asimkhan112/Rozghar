@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useNavigate } from "react-router"
 import Navbar from "../components/Navbar"
 import JobCard from "../components/JobCard"
 import {
@@ -13,7 +14,7 @@ import {
   DATE_FILTERS,
   SORT_OPTIONS,
 } from "@/hooks/useJobFilters"
-import { useCategories, useJobs, useLocations } from "@/hooks/queries"
+import { useCategories, useJobs, useLocations, useSuggest } from "@/hooks/queries"
 import { toJobQuery } from "@/lib/api/filters"
 import { describeError } from "@/lib/http"
 import { ErrorPanel, JobGridSkeleton } from "@/components/QueryState"
@@ -28,11 +29,42 @@ import {
   weight,
 } from "@/design-system"
 import { IconBadge } from "@/components/Icon"
+import SearchSuggest, { type SuggestChoice, useSuggestNavigation } from "@/components/SearchSuggest"
 
 export default function JobsPage() {
   const { filters, page, setFilter, setPage, reset, hasAdvancedFilters } =
     useJobFilters()
+  const navigate = useNavigate()
   const [filterOpen, setFilterOpen] = useState(false)
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  const suggest = useSuggest(filters.q)
+
+  /** On this page a suggestion sets a filter rather than navigating away —
+   *  the reader is already looking at results and expects them to narrow. */
+  const applySuggestion = ({ group, item }: SuggestChoice) => {
+    setSuggestOpen(false)
+    if (group === "jobs" && item.slug) {
+      navigate(`/jobs/${item.slug}`)
+      return
+    }
+    if (group === "locations") {
+      setFilter("location", item.text)
+      setFilter("q", "")
+      return
+    }
+    if (group === "categories") {
+      setFilter("category", item.text)
+      setFilter("q", "")
+      return
+    }
+    setFilter("q", item.text)
+  }
+
+  const nav = useSuggestNavigation(suggest.groups, {
+    open: suggestOpen,
+    onChoose: applySuggestion,
+    onDismiss: () => setSuggestOpen(false),
+  })
   const perPage = 8
 
   // Reference data drives the two taxonomy dropdowns and resolves the label in
@@ -83,10 +115,9 @@ export default function JobsPage() {
             flexWrap: "wrap",
           }}
         >
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
           <div
             style={{
-              flex: 1,
-              minWidth: 200,
               display: "flex",
               alignItems: "center",
               gap: 8,
@@ -109,9 +140,32 @@ export default function JobsPage() {
             </svg>
             <input
               value={filters.q}
-              onChange={(e) => setFilter("q", e.target.value)}
+              onChange={(e) => {
+                setFilter("q", e.target.value)
+                setSuggestOpen(true)
+              }}
+              onFocus={() => setSuggestOpen(true)}
+              onKeyDown={(e) => {
+                nav.onKeyDown(e)
+                if (e.key === "Enter" && !e.defaultPrevented) setSuggestOpen(false)
+              }}
+              role="combobox"
+              aria-expanded={suggestOpen}
+              aria-autocomplete="list"
               placeholder="Search jobs..."
               style={bareInput(size.base, { width: "100%" })}
+            />
+          </div>
+            <SearchSuggest
+              query={filters.q}
+              groups={suggest.groups}
+              choices={nav.choices}
+              active={nav.active}
+              onActiveChange={nav.setActive}
+              open={suggestOpen && suggest.enabled}
+              loading={suggest.isFetching}
+              onChoose={applySuggestion}
+              onDismiss={() => setSuggestOpen(false)}
             />
           </div>
           <select

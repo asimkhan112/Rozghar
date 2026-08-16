@@ -1,5 +1,5 @@
 export { queryKeys } from "./keys"
-export { useJob, useJobs, useJobsByIds, useSuggestions } from "./useJobs"
+export { useJob, useJobs, useJobsByIds } from "./useJobs"
 export { useCategories, useLocations } from "./useTaxonomy"
 export {
   useAdminJob,
@@ -25,3 +25,4 @@ export {
   useSourcePerformance,
   useSources,
 } from "./useAdminData"
+export * from "./useSuggest"

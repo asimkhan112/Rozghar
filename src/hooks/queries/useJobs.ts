@@ -7,7 +7,7 @@
  */
 
 import { useQuery, keepPreviousData } from "@tanstack/react-query"
-import { fetchJob, fetchJobs, fetchSuggestions, type JobQuery } from "@/lib/api"
+import { fetchJob, fetchJobs, type JobQuery } from "@/lib/api"
 import { STALE_TAXONOMY } from "@/app/queryClient"
 import { queryKeys } from "./keys"
 
@@ -46,13 +46,3 @@ export function useJobsByIds(ids: string[]) {
   })
 }
 
-/** Typeahead. Idle below two characters, where every listing would match. */
-export function useSuggestions(q: string) {
-  const trimmed = q.trim()
-  return useQuery({
-    queryKey: queryKeys.jobs.suggestions(trimmed),
-    queryFn: ({ signal }) => fetchSuggestions(trimmed, signal),
-    enabled: trimmed.length >= 2,
-    staleTime: STALE_TAXONOMY,
-  })
-}

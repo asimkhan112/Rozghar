@@ -8,8 +8,8 @@ front, served same-origin behind one reverse proxy.
 | Backend | Python 3.12, FastAPI, SQLAlchemy 2.0 (async), PostgreSQL 16, Redis 7 |
 | Frontend | React 19, TypeScript 5.7, Vite 8, React Router 8, React Query 5, Zustand 5 |
 | Size | ~18,800 lines Python, ~11,700 lines TypeScript |
-| API | 56 endpoints + `robots.txt` / `sitemap.xml` |
-| Tests | 231 backend tests, 57 visual snapshots |
+| API | 58 endpoints + `robots.txt` / `sitemap.xml` |
+| Tests | 246 backend tests, 57 visual snapshots |
 
 ---
 
@@ -150,6 +150,7 @@ in `Asia/Karachi`.
 | `purge_sessions` | 03:00 daily | delete expired refresh sessions |
 | `prune_telemetry` | 04:00 monthly | drop partitions past retention |
 | `alert_on_reports` | every 30 min | flag listings at the open-report threshold |
+| `refresh_suggestions` | every 20 min | rebuild the autocomplete skill and popular-query vocabularies |
 
 Run one by hand:
 
@@ -211,6 +212,33 @@ opens a share modal. The images are deliberately reachable at a public,
 stable URL (`/api/v1/jobs/{slug}/social/{variant}.png`) so SEO work can point
 `og:image` at the same file later — that integration is not built yet.
 
+### Autocomplete search
+
+`GET /api/v1/search/suggest?q=` returns grouped suggestions across job titles,
+companies, skills, locations and categories. `GET /api/v1/admin/search/suggest`
+adds sources and includes drafts and expired listings — a separate authorised
+endpoint rather than a flag, because "may this caller see unpublished titles?"
+does not belong in a query parameter.
+
+Ranking runs in four tiers: exact prefix, then terms matching a popular search,
+then full-text, then trigram fuzzy. Within a tier the tiebreak is job count.
+
+Everything is one `UNION ALL` round trip — six sequential queries could not fit
+the 100ms budget. Two vocabularies are materialised by the scheduler because
+their sources cannot be read fast enough per keystroke: skills live in a JSONB
+array with no usable index, and query popularity spans a partitioned table.
+
+The fuzzy tier uses the `%` operator, never `similarity(col, q) > threshold`.
+They return identical rows; only the first can use the trigram GIN index. At
+50k vocabulary rows that is 12ms against 158ms, and `test_suggest.py` asserts
+the query plan so the difference cannot regress silently.
+
+The front end debounces at 300ms, idles below two characters, supports arrow-key
+navigation with Enter and Escape, highlights the matched span client-side (the
+server returns plain text so a per-keystroke payload is never trusted as HTML),
+and closes on outside click. `tools/suggest-e2e.mjs` drives a real browser
+through all of it.
+
 ### AI job description tools
 
 Two admin-only endpoints backed by the Anthropic API:
@@ -240,7 +268,7 @@ make up                      # start postgres + redis
 make migrate                 # alembic upgrade head
 make check                   # fail if models and database have drifted
 make lint                    # ruff
-.venv/bin/python -m pytest -q   # 231 tests, ~3.5 min
+.venv/bin/python -m pytest -q   # 246 tests, ~4.5 min
 ```
 
 Migrations are `backend/alembic/versions/0001` … `0007`. Alembic uses a naming

@@ -24,6 +24,7 @@ from app.api.v1.routers import auth as auth_router
 from app.api.v1.routers import jobs as jobs_router
 from app.api.v1.routers import reports as reports_router
 from app.api.v1.routers import social as social_router
+from app.api.v1.routers import suggest as suggest_router
 from app.api.v1.routers import taxonomy as taxonomy_router
 from app.core.config import assert_secret_key_is_strong, settings
 from app.core.exceptions import DomainError
@@ -161,6 +162,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router.router, prefix=settings.api_v1_prefix)
     app.include_router(jobs_router.router, prefix=settings.api_v1_prefix)
+    app.include_router(suggest_router.router, prefix=settings.api_v1_prefix)
     app.include_router(reports_router.router, prefix=settings.api_v1_prefix)
     app.include_router(analytics_router.router, prefix=settings.api_v1_prefix)
     app.include_router(taxonomy_router.public, prefix=settings.api_v1_prefix)

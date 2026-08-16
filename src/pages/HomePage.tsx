@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Link, useNavigate } from "react-router"
 import Navbar from "../components/Navbar"
 import JobCard from "../components/JobCard"
-import { useCategories, useJobs } from "@/hooks/queries"
+import { useSuggest, useCategories, useJobs } from "@/hooks/queries"
 import { describeError } from "@/lib/http"
 import { ErrorPanel, JobGridSkeleton } from "@/components/QueryState"
 import { bareInput, linkReset } from "@/design-system"
@@ -16,6 +16,7 @@ import {
   weight,
 } from "@/design-system"
 import Icon, { categoryIcon, IconBadge } from "@/components/Icon"
+import SearchSuggest, { type SuggestChoice, useSuggestNavigation } from "@/components/SearchSuggest"
 
 const QUICK_FILTERS = [
   "Remote Jobs",
@@ -57,6 +58,38 @@ export default function HomePage() {
 
   const [query, setQuery] = useState("")
   const [location, setLocation] = useState("")
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  const suggest = useSuggest(query)
+
+  /** Where a suggestion takes the reader.
+   *
+   *  A job goes to the listing itself; everything else is a filtered search,
+   *  because a company or a skill is a set of listings rather than a page. */
+  const applySuggestion = ({ group, item }: SuggestChoice) => {
+    setSuggestOpen(false)
+    if (group === "jobs" && item.slug) {
+      navigate(`/jobs/${item.slug}`)
+      return
+    }
+    if (group === "locations") {
+      setLocation(item.text)
+      handleSearch(query, item.text)
+      return
+    }
+    if (group === "categories") {
+      navigate(`/jobs?category=${encodeURIComponent(item.text)}`)
+      return
+    }
+    // Companies and skills are free-text searches.
+    setQuery(item.text)
+    handleSearch(item.text, location)
+  }
+
+  const nav = useSuggestNavigation(suggest.groups, {
+    open: suggestOpen,
+    onChoose: applySuggestion,
+    onDismiss: () => setSuggestOpen(false),
+  })
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
 
   const latestJobs = latest.data?.items ?? []
@@ -140,7 +173,9 @@ export default function HomePage() {
             Curated jobs from top employers. Apply directly — no account needed.
           </p>
 
-          {/* Search box */}
+          {/* Search box. The relative wrapper sits outside the bar's own
+              `overflow: hidden`, which would otherwise clip the dropdown. */}
+          <div style={{ position: "relative" }}>
           <div
             style={{
               display: "flex",
@@ -175,10 +210,23 @@ export default function HomePage() {
               </svg>
               <input
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) =>
-                  e.key === "Enter" && handleSearch(query, location)
-                }
+                onChange={(e) => {
+                  setQuery(e.target.value)
+                  setSuggestOpen(true)
+                }}
+                onFocus={() => setSuggestOpen(true)}
+                onKeyDown={(e) => {
+                  nav.onKeyDown(e)
+                  // Enter with a highlighted row is a selection, which
+                  // `nav.onKeyDown` already consumed.
+                  if (e.key === "Enter" && !e.defaultPrevented) {
+                    setSuggestOpen(false)
+                    handleSearch(query, location)
+                  }
+                }}
+                role="combobox"
+                aria-expanded={suggestOpen}
+                aria-autocomplete="list"
                 placeholder="Job title, company, or skill..."
                 style={bareInput(size.md, { flex: 1, padding: "14px 0" })}
               />
@@ -233,6 +281,18 @@ export default function HomePage() {
             >
               Search Jobs
             </button>
+          </div>
+            <SearchSuggest
+              query={query}
+              groups={suggest.groups}
+              choices={nav.choices}
+              active={nav.active}
+              onActiveChange={nav.setActive}
+              open={suggestOpen && suggest.enabled}
+              loading={suggest.isFetching}
+              onChoose={applySuggestion}
+              onDismiss={() => setSuggestOpen(false)}
+            />
           </div>
 
           {/* Quick filters */}
