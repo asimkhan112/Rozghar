@@ -104,6 +104,30 @@ async def run_scheduled_task(name: str) -> int:
     return 0
 
 
+async def seed_taxonomy(purge: bool) -> int:
+    from app.db.seed_taxonomy import (
+        purge_test_data,
+        recount,
+        seed_categories,
+        seed_locations,
+    )
+
+    async with SessionFactory() as session:
+        if purge:
+            removed = await purge_test_data(session)
+            for table, count in removed.items():
+                print(f"removed {count} unused test {table}")
+
+        categories = await seed_categories(session)
+        locations = await seed_locations(session)
+        await recount(session)
+        await session.commit()
+
+    print(f"added {categories} categories, {locations} locations")
+    print("rebuilt job counts from published listings")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="app.cli", description="Rozgar backend operations")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -121,11 +145,22 @@ def main(argv: list[str] | None = None) -> int:
         help="generate a strong password and print it once",
     )
 
+    seed = sub.add_parser("seed-taxonomy", help="add real categories and locations")
+    seed.add_argument(
+        "--purge-test-data",
+        action="store_true",
+        dest="purge",
+        help="also remove unreferenced M3–M7 rows left by the test suites",
+    )
+
     task = sub.add_parser("run-task", help="run a scheduled task immediately")
     task.add_argument("name", nargs="?", help="task name")
     task.add_argument("--list", action="store_true", help="list the available tasks")
 
     args = parser.parse_args(argv)
+
+    if args.command == "seed-taxonomy":
+        return asyncio.run(_run(seed_taxonomy(args.purge)))
 
     if args.command == "run-task":
         from app.tasks.scheduled_tasks import TASKS

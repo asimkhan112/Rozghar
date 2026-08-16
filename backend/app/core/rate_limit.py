@@ -97,6 +97,7 @@ class RateLimiter:
 
 __all__ = [
     "ADMIN_API",
+    "AI_DRAFT",
     "ANALYTICS",
     "LOGIN",
     "REPORTS",
@@ -105,3 +106,9 @@ __all__ = [
     "RateLimit",
     "RateLimiter",
 ]
+
+
+#: AI drafting. Far tighter than the other buckets because each call costs real
+#: money and takes seconds — an editor needing more than this in an hour is
+#: fighting the tool rather than using it.
+AI_DRAFT = RateLimit(name="ai_draft", limit=40, window_seconds=3600)

@@ -14,6 +14,7 @@ from app.api import ops as ops_router
 from app.api import seo as seo_router
 from app.api.middleware import register_middleware
 from app.api.v1.routers import admin_admins as admin_admins_router
+from app.api.v1.routers import admin_ai as admin_ai_router
 from app.api.v1.routers import admin_analytics as admin_analytics_router
 from app.api.v1.routers import admin_audit as admin_audit_router
 from app.api.v1.routers import admin_jobs as admin_jobs_router
@@ -22,6 +23,7 @@ from app.api.v1.routers import analytics as analytics_router
 from app.api.v1.routers import auth as auth_router
 from app.api.v1.routers import jobs as jobs_router
 from app.api.v1.routers import reports as reports_router
+from app.api.v1.routers import social as social_router
 from app.api.v1.routers import taxonomy as taxonomy_router
 from app.core.config import assert_secret_key_is_strong, settings
 from app.core.exceptions import DomainError
@@ -167,6 +169,8 @@ def create_app() -> FastAPI:
     app.include_router(admin_analytics_router.router, prefix=settings.api_v1_prefix)
     app.include_router(admin_admins_router.router, prefix=settings.api_v1_prefix)
     app.include_router(admin_audit_router.router, prefix=settings.api_v1_prefix)
+    app.include_router(admin_ai_router.router, prefix=settings.api_v1_prefix)
+    app.include_router(social_router.router, prefix=settings.api_v1_prefix)
     app.include_router(taxonomy_router.admin, prefix=settings.api_v1_prefix)
 
     return app

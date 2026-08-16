@@ -9,6 +9,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  createLocation,
   fetchAudit,
   fetchOverview,
   fetchReports,
@@ -17,9 +18,12 @@ import {
   fetchSources,
   moderateReport,
   type AnalyticsWindow,
+  type NewLocation,
   type ReportQuery,
 } from '@/lib/api/admin'
 import type { ReportStatusDto } from '@/lib/api/admin-types'
+import { fetchShareAssets } from '@/lib/api/share'
+import { generateDescription, rewriteDescription, type GenerateInput } from '@/lib/api/ai'
 import { STALE_TAXONOMY } from '@/app/queryClient'
 import { queryKeys } from './keys'
 
@@ -77,6 +81,50 @@ export function useAuditFeed(perPage = 12) {
     queryKey: queryKeys.admin.audit.list({ per_page: perPage }),
     queryFn: ({ signal }) => fetchAudit({ per_page: perPage }, signal),
   })
+}
+
+/**
+ * Create a location and make it immediately selectable.
+ *
+ * Invalidates the taxonomy so every open dropdown picks it up, rather than
+ * leaving the editor to reload the page to use the thing they just added.
+ */
+export function useCreateLocation() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (body: NewLocation) => createLocation(body),
+    onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.taxonomy.all }),
+  })
+}
+
+/**
+ * Share captions and image URLs for one listing.
+ *
+ * Only fetched when the modal is open — the payload is useless until then, and
+ * requesting it on every publish would generate captions nobody reads.
+ */
+export function useShareAssets(jobId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.admin.shareAssets(jobId ?? ""),
+    queryFn: ({ signal }) => fetchShareAssets(jobId!, signal),
+    enabled: Boolean(jobId),
+    // Captions are derived from the listing; they change only when it does.
+    staleTime: STALE_TAXONOMY,
+  })
+}
+
+/**
+ * AI drafting mutations.
+ *
+ * No cache invalidation, because nothing on the server changed — the draft is
+ * returned to the caller and goes nowhere else until the editor accepts it.
+ */
+export function useRewriteDescription() {
+  return useMutation({ mutationFn: (description: string) => rewriteDescription(description) })
+}
+
+export function useGenerateDescription() {
+  return useMutation({ mutationFn: (input: GenerateInput) => generateDescription(input) })
 }
 
 export function useSources() {

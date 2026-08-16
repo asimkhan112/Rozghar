@@ -9,7 +9,7 @@ it is idempotent, and it agrees with the raw events it came from.
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -398,11 +398,20 @@ def test_series_fills_days_with_no_traffic(client, world):
     send(client, [{"type": "job_view", "job_id": world["popular"]}])
     rollup()
     t = token_for(client, ADMIN_EMAIL)
-    body = client.get(f"{DASH}/overview?from=2026-08-01&to=2026-08-15", headers=auth(t)).json()
+
+    # The window is relative to today, not a fixed pair of dates. Hardcoding
+    # them made this pass only on the day it was written: the event is stamped
+    # `now`, so a window ending yesterday contains nothing.
+    today = date.today()
+    since = today - timedelta(days=14)
+    body = client.get(
+        f"{DASH}/overview?from={since.isoformat()}&to={today.isoformat()}", headers=auth(t)
+    ).json()
 
     # A chart missing its empty days draws a straight line across an outage.
     assert len(body["series"]) == 15
     assert sum(p["job_views"] for p in body["series"]) == 1
+    assert body["series"][-1]["date"] == today.isoformat()
 
 
 def test_sources_include_those_with_no_activity(client, world):

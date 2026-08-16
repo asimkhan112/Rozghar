@@ -208,11 +208,17 @@ def test_cannot_remove_the_last_administrator(client, world):
     t = token_for(client, SUPER_EMAIL)
     other = admin_id_for(client, t, OTHER_SUPER_EMAIL)
 
-    # Demote every other administrator, leaving the caller as the only one.
+    # Demote the other administrators this module created, leaving the caller
+    # as the only one.
+    #
+    # Scoped to `m8-` accounts deliberately. An earlier version demoted every
+    # admin holding ADMIN_MANAGE, which in a shared development database meant
+    # demoting the operator's own account — a test that silently locks a person
+    # out of their own dashboard. A fixture may only mutate what it created.
     everyone = client.get(f"{ADMINS}?per_page=100", headers=auth(t)).json()["items"]
     me = admin_id_for(client, t, SUPER_EMAIL)
     for account in everyone:
-        if account["id"] in (me, other):
+        if account["id"] in (me, other) or not account["email"].startswith("m8-"):
             continue
         if "ADMIN_MANAGE" in account["permissions"] and account["is_active"]:
             client.patch(
@@ -231,13 +237,16 @@ def test_cannot_remove_the_last_administrator(client, world):
 
     # …and `me` cannot be demoted by anyone, because there is nobody left.
     # Self-modification blocks the caller, so the guard is checked directly.
-    async def remaining() -> int:
-        from app.repositories.admin_management_repo import AdminManagementRepository
-
-        async with SessionFactory() as s:
-            return await AdminManagementRepository(s).count_active_holders_of("ADMIN_MANAGE")
-
-    assert asyncio.run(remaining()) == 1
+    # `other` is now an editor, so no `m8-` account besides the caller holds
+    # the permission. Accounts this module did not create are left alone and
+    # may legitimately still hold it.
+    remaining = client.get(f"{ADMINS}?per_page=100", headers=auth(t)).json()["items"]
+    m8_managers = [
+        a
+        for a in remaining
+        if a["email"].startswith("m8-") and a["is_active"] and "ADMIN_MANAGE" in a["permissions"]
+    ]
+    assert [a["email"] for a in m8_managers] == [SUPER_EMAIL]
 
 
 def test_role_assignment_needs_its_own_permission(client, world):

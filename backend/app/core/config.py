@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
 
+    #: Where generated binary assets live. Relative to the working
+    #: directory in development; an absolute path in a container, mounted on a
+    #: volume that survives a restart.
+    storage_root: str = "storage"
+
     #: Public origin, used to build absolute URLs the application does not
     #: serve itself — sitemap entries, canonical links, structured data.
     #: Relative URLs are invalid in all three, so this cannot be derived from
@@ -119,6 +124,25 @@ class Settings(BaseSettings):
 
     #: Open reports on one listing before it is escalated in the logs.
     report_alert_threshold: int = 3
+
+    # --- AI assistance ---------------------------------------------------
+    #: Anthropic API key. Absent means the AI endpoints return 503 rather than
+    #: failing at call time — an editor should be told the feature is off, not
+    #: shown a stack trace.
+    anthropic_api_key: str = ""
+
+    #: The model the editorial tools call. Pinned rather than "latest" so a
+    #: model release cannot silently change how every job description reads.
+    ai_model: str = "claude-opus-5"
+
+    #: Output ceiling per call. A generated description with all four sections
+    #: runs ~800 tokens; this leaves room without letting a runaway response
+    #: bill unbounded.
+    ai_max_tokens: int = 4096
+
+    #: Calls per admin per hour. Each one costs real money, and an editor who
+    #: needs more than this in an hour is fighting the tool rather than using it.
+    ai_rate_limit_per_hour: int = 40
 
     # --- startup ---------------------------------------------------------
     #: When true, a mismatch between the Permission enum and the permissions

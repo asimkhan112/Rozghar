@@ -12,6 +12,7 @@ from app.models.company import Company
 from app.models.job import Job
 from app.models.rbac import Permission, Role, role_permissions
 from app.models.report import Report
+from app.models.social import JobSocialAsset
 from app.models.taxonomy import Category, Location, Source
 
 __all__ = [
@@ -24,6 +25,7 @@ __all__ = [
     "Category",
     "Company",
     "Job",
+    "JobSocialAsset",
     "Location",
     "Permission",
     "Report",

@@ -7,6 +7,7 @@ import {
   useReports,
 } from '@/hooks/queries'
 import { describeError } from '@/lib/http'
+import { now } from '@/lib/api/adapters'
 import { ErrorPanel } from '@/components/QueryState'
 
 /**
@@ -44,9 +45,14 @@ const ACTION_TONE: Record<string, 'success' | 'brand' | 'warning' | 'danger' | '
   'report.reopen': 'danger',
 }
 
-/** `2026-08-16T09:12:00Z` → `18 min ago`. */
+/** `2026-08-16T09:12:00Z` → `18 min ago`.
+ *
+ * Reads the injectable clock rather than `Date.now()` directly, so the
+ * snapshot harness can pin it. Otherwise every rendered baseline drifts from
+ * the last by however long has passed since it was taken.
+ */
 function ago(iso: string): string {
-  const elapsed = Date.now() - Date.parse(iso)
+  const elapsed = now() - Date.parse(iso)
   const minutes = Math.floor(elapsed / 60000)
   if (minutes < 1) return 'just now'
   if (minutes < 60) return `${minutes} min ago`
@@ -131,6 +137,19 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
+              {TOP_JOBS_TABLE.length === 0 && (
+                <tr>
+                  {/* Not a failure: the ranking is built from view and apply
+                      events, and nothing on the public site emits them yet.
+                      An empty table with headers reads as broken, so it says
+                      why instead. */}
+                  <td colSpan={6} style={{ padding: '32px 16px', textAlign: 'center', fontSize: size.sm, color: color.text.muted }}>
+                    {overview.isPending
+                      ? 'Loading…'
+                      : 'No view or apply activity recorded yet — this ranking fills in once visitors start browsing.'}
+                  </td>
+                </tr>
+              )}
               {TOP_JOBS_TABLE.map((j, i) => (
                 <tr key={i} style={{ borderTop: `1px solid ${color.surface.muted}` }}
                   onMouseEnter={e => (e.currentTarget.style.background = color.surface.hover)}

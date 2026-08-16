@@ -56,6 +56,7 @@ export const queryKeys = {
       list: (params: object) => [...queryKeys.admin.audit.all, 'list', params] as const,
     },
     sources: () => ['admin', 'sources'] as const,
+    shareAssets: (jobId: string) => ['admin', 'share-assets', jobId] as const,
   },
   taxonomy: {
     all: ["taxonomy"] as const,

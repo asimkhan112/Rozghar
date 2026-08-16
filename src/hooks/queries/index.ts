@@ -15,9 +15,13 @@ export {
 export {
   useAnalyticsOverview,
   useAuditFeed,
+  useGenerateDescription,
+  useRewriteDescription,
+  useCreateLocation,
   useModerateReport,
   useReports,
   useSearchAnalytics,
+  useShareAssets,
   useSourcePerformance,
   useSources,
 } from "./useAdminData"

@@ -73,6 +73,19 @@ class ReportStatus(StrEnum):
     DISMISSED = "dismissed"
 
 
+class SocialVariant(StrEnum):
+    """Generated share-image formats.
+
+    Square is what every platform accepts and what a person forwards on
+    WhatsApp. The landscape sizes exist as separate members rather than as a
+    width/height pair on the row, because a variant is a *design*, not just a
+    crop — the landscape card fits fewer skill chips.
+    """
+
+    SQUARE = "square"  # 1080x1080 — WhatsApp, Instagram, X
+    LANDSCAPE = "landscape"  # 1200x627 — LinkedIn, Facebook, og:image
+
+
 class EventType(StrEnum):
     """Behavioural events.
 
@@ -122,6 +135,7 @@ PG_ENUMS: dict[str, type[StrEnum]] = {
     "event_type": EventType,
     "device_type": DeviceType,
     "session_revoke_reason": SessionRevokeReason,
+    "social_variant": SocialVariant,
 }
 
 

@@ -142,16 +142,22 @@ class LocationService(_BaseTaxonomyService):
     async def list_public(self, *, country: str | None = None) -> list[Location]:
         return await self.repo.list_active(country=country)
 
-    @staticmethod
-    def _display_name(data: dict[str, Any]) -> str:
+    #: Country codes spelled out in labels. A dropdown that mixes
+    #: "Lahore, Pakistan" with "Chiniot, PK" looks broken, and the two-letter
+    #: code is a storage detail no reader needs to see.
+    COUNTRY_NAMES = {"PK": "Pakistan", "AE": "UAE", "SA": "Saudi Arabia", "GB": "UK", "US": "USA"}
+
+    @classmethod
+    def _display_name(cls, data: dict[str, Any]) -> str:
         """Compose the label the UI shows, so it is consistent everywhere."""
         if data.get("display_name"):
             return str(data["display_name"])
         if data.get("is_remote"):
             scope = data.get("region") or data.get("country") or "Worldwide"
-            return f"Remote – {scope}"
+            return f"Remote – {cls.COUNTRY_NAMES.get(scope, scope)}"
         city = data.get("city") or ""
-        country = data.get("country") or ""
+        code = data.get("country") or ""
+        country = cls.COUNTRY_NAMES.get(code, code)
         return f"{city}, {country}".strip(", ")
 
     async def create(

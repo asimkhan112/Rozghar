@@ -42,6 +42,11 @@ export interface AdminJobQuery {
  * `If-Match` and be told about a concurrent edit rather than clobbering it.
  */
 export interface AdminJob extends Job {
+  /** Foreign keys the edit form needs to preselect its dropdowns. The display
+   *  adapter reduces category and location to their labels, which is right for
+   *  rendering and useless for writing back. */
+  categoryId: string
+  locationId: string
   version: number
   viewCount: number
   applyClickCount: number
@@ -67,6 +72,8 @@ export function toAdminJob(dto: JobAdminDto, at = now()): AdminJob {
       clicks: dto.apply_click_count,
       saves: dto.save_count,
     },
+    categoryId: dto.category.id,
+    locationId: dto.location.id,
     version: dto.version,
     viewCount: dto.view_count,
     applyClickCount: dto.apply_click_count,
@@ -243,7 +250,23 @@ export function updateCategory(id: string, changes: Record<string, unknown>) {
   return api.patch<CategoryDto>(`/admin/categories/${id}`, changes)
 }
 
-export function createLocation(body: Record<string, unknown>) {
+export interface NewLocation {
+  city?: string
+  region?: string
+  country?: string
+  is_remote?: boolean
+  display_name?: string
+}
+
+/**
+ * Add a location that is not in the list yet.
+ *
+ * The catalogue cannot enumerate every town in advance, and an editor who
+ * cannot name the right place will pick the nearest big city — which is worse
+ * than a slightly untidy taxonomy, because the listing then shows up in
+ * searches for a city it is not in.
+ */
+export function createLocation(body: NewLocation) {
   return api.post<LocationDto>('/admin/locations', body)
 }
 
