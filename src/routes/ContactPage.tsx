@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Navbar from '@/components/Navbar'
 import { color, formFieldLabel, formInput, formSelect, formTextarea, radius, size, tracking, weight } from '@/design-system'
+import { IconBadge } from '@/components/Icon'
 
 const SUBJECTS = ['Report a listing', 'Employer enquiry', 'Feedback', 'Something else']
 
@@ -42,7 +43,9 @@ export default function ContactPage() {
 
         {sent ? (
           <div style={{ textAlign: 'center', padding: '64px 24px', background: color.surface.base, border: `1px solid ${color.border.base}`, borderRadius: radius['5xl'] }}>
-            <div style={{ fontSize: size['8xl'], marginBottom: 16 }}>✅</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+              <IconBadge name='checkCircle' size='xl' tone='success' />
+            </div>
             <h2 style={{ fontSize: size['3xl'], fontWeight: weight.bold, color: color.text.primary, margin: '0 0 8px' }}>Message received</h2>
             <p style={{ fontSize: size.md, color: color.text.secondary, margin: '0 0 24px', maxWidth: 380, marginInline: 'auto' }}>
               Thanks, {form.name.split(' ')[0]}. We reply to most messages within two working days.

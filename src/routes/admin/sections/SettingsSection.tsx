@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { actionTone, adminStatusTone, color, fontFamily, pillTone, radius, shadow, size, tracking, weight } from '@/design-system'
 import { FField, FormSection, FRow, IS, StatusPill } from '@/components/ui/AdminForm'
 import { useToast } from '@/stores/useToastStore'
+import { IconBadge } from '@/components/Icon'
 
 export default function SettingsSection() {
   const showToast = useToast()
@@ -42,7 +43,9 @@ export default function SettingsSection() {
           <>
             <FField label="Logo">
               <div style={{ border: `2px dashed ${color.border.base}`, borderRadius: radius['2xl'], padding: '24px', textAlign: 'center', cursor: 'pointer' }}>
-                <div style={{ fontSize: size['5xl'], marginBottom: 8 }}>📁</div>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+                  <IconBadge name='folder' size='md' />
+                </div>
                 <div style={{ fontSize: size.sm, color: color.text.secondary }}>Drag & drop or click to upload</div>
                 <div style={{ fontSize: size['2xs'], color: color.text.muted, marginTop: 4 }}>SVG, PNG up to 2MB</div>
               </div>

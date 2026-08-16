@@ -106,7 +106,9 @@ export interface JobCategory {
   id: string
   name: string
   count: number
-  icon: string
+  /** The taxonomy's stored glyph. Mapped to a line icon by `categoryIcon`;
+   *  null when the category was created without one. */
+  icon: string | null
   /** URL segment the API filters on. Owned by the backend, never derived. */
   slug: string
 }

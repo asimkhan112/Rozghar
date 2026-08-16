@@ -15,6 +15,7 @@ import {
   tracking,
   weight,
 } from "@/design-system"
+import Icon, { categoryIcon, IconBadge } from "@/components/Icon"
 
 const QUICK_FILTERS = [
   "Remote Jobs",
@@ -26,11 +27,11 @@ const QUICK_FILTERS = [
 ]
 
 const TRUST_ITEMS = [
-  { icon: "⚡", label: "Updated Daily", sub: "Fresh listings every 24h" },
-  { icon: "✓", label: "Verified Sources", sub: "Direct from employers" },
-  { icon: "→", label: "Direct Apply", sub: "No middleman, no signup" },
-  { icon: "🔒", label: "No Registration", sub: "Browse freely, apply fast" },
-]
+  { icon: "zap", label: "Updated Daily", sub: "Fresh listings every 24h" },
+  { icon: "shield", label: "Verified Sources", sub: "Direct from employers" },
+  { icon: "external", label: "Direct Apply", sub: "No middleman, no signup" },
+  { icon: "lock", label: "No Registration", sub: "Browse freely, apply fast" },
+] as const
 
 export default function HomePage() {
   const navigate = useNavigate()
@@ -296,7 +297,7 @@ export default function HomePage() {
                 gap: 12,
               }}
             >
-              <span style={{ fontSize: size["2xl"] }}>{item.icon}</span>
+              <IconBadge name={item.icon} size="sm" />
               <div>
                 <div
                   style={{
@@ -419,7 +420,8 @@ export default function HomePage() {
                     color: color.text.primary,
                   }}
                 >
-                  ⭐ Featured
+                  <Icon name="star" size={12} style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 5 }} />
+                  Featured
                 </span>
                 <span
                   style={{
@@ -629,7 +631,7 @@ export default function HomePage() {
                     color: color.text.primary,
                   }}
                 >
-                  🎓 For Fresh Graduates
+                  For Fresh Graduates
                 </h2>
                 <p
                   style={{
@@ -785,7 +787,7 @@ export default function HomePage() {
                   e.currentTarget.style.boxShadow = "none"
                 }}
               >
-                <span style={{ fontSize: size["5xl"] }}>{cat.icon}</span>
+                <IconBadge name={categoryIcon(cat.icon, cat.slug)} size="lg" />
                 <div>
                   <div
                     style={{

@@ -1,14 +1,15 @@
 import { Link } from 'react-router'
 import Navbar from '@/components/Navbar'
 import { color, linkReset, radius, size, tracking, weight } from '@/design-system'
+import { IconBadge } from '@/components/Icon'
 
 /** Trust claims already made on the homepage, restated as the about copy. */
 const PRINCIPLES = [
-  { icon: '⚡', label: 'Updated Daily', body: 'Listings are refreshed every 24 hours. Expired postings are removed rather than left to rot.' },
-  { icon: '✓', label: 'Verified Sources', body: 'Jobs come from company career pages and trusted boards, and every listing links back to its source.' },
-  { icon: '→', label: 'Direct Apply', body: 'Applications go straight to the employer. We never sit between you and the hiring team.' },
-  { icon: '🔒', label: 'No Registration', body: 'Browse and apply without an account. Saved jobs stay on your device, not on our servers.' },
-]
+  { icon: 'zap', label: 'Updated Daily', body: 'Listings are refreshed every 24 hours. Expired postings are removed rather than left to rot.' },
+  { icon: 'shield', label: 'Verified Sources', body: 'Jobs come from company career pages and trusted boards, and every listing links back to its source.' },
+  { icon: 'external', label: 'Direct Apply', body: 'Applications go straight to the employer. We never sit between you and the hiring team.' },
+  { icon: 'lock', label: 'No Registration', body: 'Browse and apply without an account. Saved jobs stay on your device, not on our servers.' },
+] as const
 
 export default function AboutPage() {
   return (
@@ -36,7 +37,7 @@ export default function AboutPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 32 }}>
           {PRINCIPLES.map(item => (
             <div key={item.label} style={{ background: color.surface.base, border: `1px solid ${color.border.base}`, borderRadius: radius['3xl'], padding: '18px 22px', display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-              <span style={{ fontSize: size['3xl'], flexShrink: 0, lineHeight: 1.2 }}>{item.icon}</span>
+              <IconBadge name={item.icon} size='sm' />
               <div>
                 <div style={{ fontSize: size.base, fontWeight: weight.semibold, color: color.text.primary, marginBottom: 3 }}>{item.label}</div>
                 <div style={{ fontSize: size.sm, color: color.text.secondary, lineHeight: 1.6 }}>{item.body}</div>

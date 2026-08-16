@@ -19,6 +19,7 @@ import { ErrorPanel } from '@/components/QueryState'
 import type { JobWriteDto } from '@/lib/api/admin-types'
 import ShareJobModal from '@/components/ShareJobModal'
 import AIDraftReview, { draftToFields, type DraftFields } from '@/components/AIDraftReview'
+import Icon from '@/components/Icon'
 
 const WORK_TYPE = { 'On-site': 'on_site', Remote: 'remote', Hybrid: 'hybrid' } as const
 const EMPLOYMENT_TYPE = {
@@ -490,7 +491,8 @@ export default function AddJobSection() {
                 }
                 style={aiButton(drafting)}
               >
-                {rewrite.isPending ? 'Rewriting…' : '✨ Rewrite with AI'}
+                <Icon name="sparkles" size={15} />
+                {rewrite.isPending ? 'Rewriting…' : 'Rewrite with AI'}
               </button>
               <button
                 type="button"
@@ -503,7 +505,8 @@ export default function AddJobSection() {
                 }
                 style={aiButton(drafting)}
               >
-                {generate.isPending ? 'Writing…' : '✨ Generate from job details'}
+                <Icon name="sparkles" size={15} />
+                {generate.isPending ? 'Writing…' : 'Generate from job details'}
               </button>
               <span style={{ fontSize: size.xs, color: color.text.muted, alignSelf: 'center' }}>
                 You review every change before it is applied.

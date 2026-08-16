@@ -11,6 +11,7 @@
 
 import type { CSSProperties, ReactNode } from "react"
 import { color, radius, size, weight } from "@/design-system"
+import { IconBadge, type IconName, type IconTone } from "@/components/Icon"
 
 /**
  * A card-shaped placeholder.
@@ -93,18 +94,22 @@ const panel: CSSProperties = {
 
 export function EmptyPanel({
   icon,
+  tone = "brand",
   title,
   message,
   action,
 }: {
-  icon: string
+  icon: IconName
+  tone?: IconTone
   title: string
   message: string
   action?: ReactNode
 }) {
   return (
     <div style={panel}>
-      <div style={{ fontSize: size["7xl"], marginBottom: 12 }}>{icon}</div>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+        <IconBadge name={icon} size="lg" tone={tone} />
+      </div>
       <div
         style={{
           fontSize: size.lg,
@@ -146,7 +151,9 @@ export function ErrorPanel({
 }) {
   return (
     <div style={panel} role="alert">
-      <div style={{ fontSize: size["7xl"], marginBottom: 12 }}>⚠️</div>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+        <IconBadge name="alert" size="lg" tone="danger" />
+      </div>
       <div
         style={{
           fontSize: size.lg,

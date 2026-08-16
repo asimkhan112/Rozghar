@@ -5,6 +5,8 @@ import { useExpireJob, useModerateReport, useReports } from '@/hooks/queries'
 import { describeError } from '@/lib/http'
 import { EmptyPanel, ErrorPanel } from '@/components/QueryState'
 import { formatDate } from '@/lib/format'
+import { IconBadge } from '@/components/Icon'
+import Icon from '@/components/Icon'
 
 /** The API's reason values, with the wording a moderator reads. */
 const REASON_LABEL: Record<string, string> = {
@@ -75,7 +77,9 @@ export default function ReportsSection() {
 
       {pending.length === 0 ? (
         <div style={{ background: color.surface.base, border: `1px solid ${color.border.base}`, borderRadius: radius['3xl'], padding: '60px 24px', textAlign: 'center' }}>
-          <div style={{ fontSize: size['7xl'], marginBottom: 12 }}>✅</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+            <IconBadge name='checkCircle' size='lg' tone='success' />
+          </div>
           <div style={{ fontSize: size.lg, fontWeight: weight.bold, color: color.text.primary, marginBottom: 6 }}>All reports resolved</div>
           <div style={{ fontSize: size.sm, color: color.text.muted }}>No pending reports to review</div>
         </div>
@@ -104,8 +108,9 @@ export default function ReportsSection() {
                         changes: { status: 'resolved', resolution_note: 'Reviewed and resolved from the moderation queue.' },
                       }),
                     )}
-                    style={{ padding: '7px 14px', border: `1px solid ${color.success.border}`, background: color.success.tintAlt, color: color.success.text, borderRadius: radius.lg, fontSize: size.xs, fontWeight: weight.semibold, cursor: 'pointer' }}>
-                    ✓ Resolve
+                    style={{ padding: '7px 14px', display: 'inline-flex', alignItems: 'center', gap: 6, border: `1px solid ${color.success.border}`, background: color.success.tintAlt, color: color.success.text, borderRadius: radius.lg, fontSize: size.xs, fontWeight: weight.semibold, cursor: 'pointer' }}>
+                    <Icon name="check" size={14} />
+                    Resolve
                   </button>
                   <button
                     disabled={busy === r.id}

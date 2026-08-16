@@ -4,6 +4,7 @@ import { NAV_ITEMS } from './navItems'
 import { useAdminSidebarOpen, useSetAdminSidebarOpen } from '@/stores/usePreferencesStore'
 import { useSignOut } from '@/stores/useAuthStore'
 import { useToastMessage } from '@/stores/useToastStore'
+import Icon from '@/components/Icon'
 
 /** Section key -> URL segment. The dashboard is the index route. */
 const SECTION_PATH: Record<string, string> = {
@@ -86,9 +87,7 @@ export default function AdminLayout() {
               >
                 {({ isActive }) => (
                   <>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                      <path d={item.icon} />
-                    </svg>
+                    <Icon name={item.icon} size={16} />
                     {sidebarOpen && <span style={{ fontSize: size.sm, fontWeight: isActive ? weight.semibold : weight.regular }}>{item.label}</span>}
                     {isActive && sidebarOpen && <span style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: radius.full, background: color.brand.base, flexShrink: 0 }} />}
                   </>

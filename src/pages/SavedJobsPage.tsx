@@ -13,6 +13,7 @@ import { useSavedIds } from "@/stores/useSavedJobsStore"
 import { useJobsByIds } from "@/hooks/queries"
 import { describeError } from "@/lib/http"
 import { ErrorPanel, JobGridSkeleton } from "@/components/QueryState"
+import { IconBadge } from "@/components/Icon"
 
 export default function SavedJobsPage() {
   const savedIds = useSavedIds()
@@ -76,7 +77,9 @@ export default function SavedJobsPage() {
               borderRadius: radius["5xl"],
             }}
           >
-            <div style={{ fontSize: size["8xl"], marginBottom: 16 }}>🔖</div>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+              <IconBadge name="bookmark" size="xl" />
+            </div>
             <h3
               style={{
                 fontSize: size["3xl"],

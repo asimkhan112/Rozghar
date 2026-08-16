@@ -221,14 +221,15 @@ export function toJobDetail(dto: JobDetailDto, now?: number): Job {
   }
 }
 
-/** The homepage category tiles. `icon` falls back to a neutral glyph. */
+/** The homepage category tiles. The stored glyph is passed through untouched —
+ *  `categoryIcon` in the icon set decides which line icon renders it. */
 export function toCategory(dto: CategoryDto): JobCategory {
   return {
     id: dto.id,
     name: dto.name,
     slug: dto.slug,
     count: dto.job_count,
-    icon: dto.icon ?? "📁",
+    icon: dto.icon,
   }
 }
 

@@ -11,6 +11,7 @@ import {
   tracking,
   weight,
 } from "@/design-system"
+import { categoryIcon, IconBadge } from "@/components/Icon"
 
 /**
  * Category index.
@@ -61,7 +62,7 @@ export default function CategoriesPage() {
           />
         ) : !isPending && categories.length === 0 ? (
           <EmptyPanel
-            icon="🗂️"
+            icon="layers"
             title="No categories yet"
             message="Categories appear here once listings have been published against them."
           />
@@ -99,9 +100,7 @@ export default function CategoriesPage() {
                   e.currentTarget.style.background = color.surface.base
                 }}
               >
-                <span style={{ fontSize: size["5xl"], flexShrink: 0 }}>
-                  {cat.icon}
-                </span>
+                <IconBadge name={categoryIcon(cat.icon, cat.slug)} size="md" />
                 <div style={{ minWidth: 0 }}>
                   <div
                     style={{

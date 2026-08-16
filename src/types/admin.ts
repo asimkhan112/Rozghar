@@ -1,3 +1,5 @@
+import type { IconName } from "@/components/Icon"
+
 /**
  * Types for the admin console.
  *
@@ -24,8 +26,10 @@ export type AdminSection = (typeof ADMIN_SECTIONS)[number]
 export interface AdminNavItem {
   key: AdminSection
   label: string
-  /** SVG path data for the sidebar glyph. */
-  icon: string
+  /** A name from the icon set. Path data used to live here, which limited the
+   *  sidebar to single-path glyphs — the gear, the map pin and the link were
+   *  all rendering as fragments of themselves. */
+  icon: IconName
 }
 
 export interface MetricCard {

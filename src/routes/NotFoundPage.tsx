@@ -1,6 +1,7 @@
 import { Link } from 'react-router'
 import Navbar from '@/components/Navbar'
 import { color, linkReset, radius, size, weight } from '@/design-system'
+import { IconBadge } from '@/components/Icon'
 
 /**
  * 404 surface.
@@ -15,7 +16,9 @@ export default function NotFoundPage() {
       <Navbar />
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 24px 80px' }}>
         <div style={{ textAlign: 'center', padding: '80px 24px', background: color.surface.base, border: `1px solid ${color.border.base}`, borderRadius: radius['5xl'] }}>
-          <div style={{ fontSize: size['8xl'], marginBottom: 16 }}>🧭</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+            <IconBadge name='compass' size='xl' />
+          </div>
           <h1 style={{ fontSize: size['3xl'], fontWeight: weight.bold, color: color.text.primary, margin: '0 0 8px' }}>Page not found</h1>
           <p style={{ fontSize: size.md, color: color.text.secondary, margin: '0 0 24px', maxWidth: 360, marginInline: 'auto' }}>
             This page may have moved, or the job listing has expired and been removed.

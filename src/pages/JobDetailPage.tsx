@@ -19,6 +19,7 @@ import {
 } from "@/design-system"
 import { useIsSaved, useToggleSave } from "@/stores/useSavedJobsStore"
 import NotFoundPage from "@/routes/NotFoundPage"
+import Icon, { IconBadge } from "@/components/Icon"
 
 export default function JobDetailPage() {
   const { slug } = useParams()
@@ -226,15 +227,17 @@ export default function JobDetailPage() {
                 marginBottom: 20,
               }}
             >
-              {[
-                { icon: "📍", label: "Location", value: job.location },
-                { icon: "💼", label: "Work Type", value: job.workType },
-                { icon: "⏱️", label: "Employment", value: job.employmentType },
-                { icon: "💰", label: "Salary", value: job.salary },
-                { icon: "📈", label: "Experience", value: job.experience },
-                { icon: "🏷️", label: "Category", value: job.category },
-              ].map((m) => (
-                <div key={m.label}>
+              {([
+                { icon: "mapPin", label: "Location", value: job.location },
+                { icon: "briefcase", label: "Work Type", value: job.workType },
+                { icon: "clock", label: "Employment", value: job.employmentType },
+                { icon: "currency", label: "Salary", value: job.salary },
+                { icon: "trendingUp", label: "Experience", value: job.experience },
+                { icon: "tag", label: "Category", value: job.category },
+              ] as const).map((m) => (
+                <div key={m.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <IconBadge name={m.icon} size="xs" />
+                  <div style={{ minWidth: 0 }}>
                   <div
                     style={{
                       fontSize: size["2xs"],
@@ -252,13 +255,10 @@ export default function JobDetailPage() {
                       fontSize: size.sm,
                       fontWeight: weight.semibold,
                       color: color.text.primary,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
                     }}
                   >
-                    <span>{m.icon}</span>
                     {m.value}
+                  </div>
                   </div>
                 </div>
               ))}
@@ -385,16 +385,18 @@ export default function JobDetailPage() {
                       minWidth: 160,
                     }}
                   >
-                    {[
-                      { label: "📱 WhatsApp", color: color.external.whatsapp },
-                      { label: "💼 LinkedIn", color: color.external.linkedin },
-                      { label: "📋 Copy Link", color: color.text.secondary },
-                    ].map((s) => (
+                    {([
+                      { icon: "chat", label: "WhatsApp", color: color.external.whatsapp },
+                      { icon: "linkedin", label: "LinkedIn", color: color.external.linkedin },
+                      { icon: "link", label: "Copy Link", color: color.text.secondary },
+                    ] as const).map((s) => (
                       <button
                         key={s.label}
                         onClick={() => setShowShareMenu(false)}
                         style={{
-                          display: "block",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
                           width: "100%",
                           padding: "8px 12px",
                           border: "none",
@@ -407,6 +409,7 @@ export default function JobDetailPage() {
                           borderRadius: radius.md,
                         }}
                       >
+                        <Icon name={s.icon} size={15} />
                         {s.label}
                       </button>
                     ))}
@@ -753,7 +756,13 @@ export default function JobDetailPage() {
             flexShrink: 0,
           }}
         >
-          {applied ? "✓ Applied" : "Apply Now →"}
+          {applied ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+              <Icon name="check" size={16} /> Applied
+            </span>
+          ) : (
+            "Apply Now →"
+          )}
         </button>
       </div>
 

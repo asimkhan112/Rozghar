@@ -26,6 +26,7 @@ import { describeError } from "@/lib/http"
 import { ErrorPanel } from "@/components/QueryState"
 import { toAdminRow } from "../adminRow"
 import type { AdminJobRow } from "@/types/admin"
+import Icon from "@/components/Icon"
 
 /**
  * Admin jobs table.
@@ -586,12 +587,12 @@ export default function JobsSection() {
                         <div style={{ display: "flex", gap: 4 }}>
                           {[
                             {
-                              label: "Edit",
+                              icon: "pen" as const,
                               title: "Edit",
                               run: () => navigate(`/admin/dashboard/add-job?edit=${j.id}`),
                             },
                             {
-                              label: "⭐",
+                              icon: "star" as const,
                               title: jobsById.get(j.id)?.featured ? "Unfeature" : "Feature",
                               run: () =>
                                 run(j.id, "Feature", () =>
@@ -602,7 +603,7 @@ export default function JobsSection() {
                                 ),
                             },
                             {
-                              label: "✓",
+                              icon: "check" as const,
                               title: jobsById.get(j.id)?.verified ? "Unverify" : "Verify",
                               run: () =>
                                 run(j.id, "Verify", () =>
@@ -615,7 +616,7 @@ export default function JobsSection() {
                             ...(j.status === "published"
                               ? [
                                   {
-                                    label: "⌛",
+                                    icon: "clock" as const,
                                     title: "Expire",
                                     run: () =>
                                       run(j.id, "Expire", () =>
@@ -625,7 +626,7 @@ export default function JobsSection() {
                                 ]
                               : [
                                   {
-                                    label: "▶",
+                                    icon: "upload" as const,
                                     title: "Publish",
                                     run: () =>
                                       run(j.id, "Publish", () =>
@@ -640,8 +641,9 @@ export default function JobsSection() {
                               disabled={isBusy}
                               onClick={a.run}
                               style={{
-                                fontSize: size["2xs"],
-                                padding: "4px 8px",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                padding: "5px 7px",
                                 border: `1px solid ${color.border.base}`,
                                 background: color.surface.base,
                                 color: color.text.secondary,
@@ -649,15 +651,16 @@ export default function JobsSection() {
                                 cursor: "pointer",
                               }}
                             >
-                              {a.label}
+                              <Icon name={a.icon} size={13} />
                             </button>
                           ))}
                           <button
                             title="Delete"
                             onClick={() => setDeleteConfirm(j.id)}
                             style={{
-                              fontSize: size["2xs"],
-                              padding: "4px 8px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              padding: "5px 7px",
                               border: `1px solid ${color.danger.border}`,
                               background: color.danger.tint,
                               color: color.danger.base,
@@ -665,7 +668,7 @@ export default function JobsSection() {
                               cursor: "pointer",
                             }}
                           >
-                            ✕
+                            <Icon name="close" size={13} />
                           </button>
                         </div>
                       )}

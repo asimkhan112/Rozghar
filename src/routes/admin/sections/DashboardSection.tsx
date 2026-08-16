@@ -62,6 +62,7 @@ function ago(iso: string): string {
 }
 import { FField, FormSection, FRow, IS, StatusPill } from '@/components/ui/AdminForm'
 import { useToast } from '@/stores/useToastStore'
+import Icon, { IconBadge } from '@/components/Icon'
 
 export default function Dashboard() {
   const showToast = useToast()
@@ -78,13 +79,13 @@ export default function Dashboard() {
    *  lines ("+1,240 this month") were invented; where the API cannot supply a
    *  comparison, the card carries a fact it does have. */
   const METRIC_CARDS = [
-    { label: 'Total Jobs', value: allJobs.data?.total, change: `${publishedJobs.data?.total ?? 0} published`, trend: 'up' as const, icon: '📋' },
-    { label: 'Job Views', value: totals?.job_views, change: 'Last 30 days', trend: 'up' as const, icon: '👀' },
-    { label: 'Apply Clicks', value: totals?.apply_clicks, change: overview.data ? `${Math.round((overview.data.rates.view_to_apply ?? 0) * 100)}% of views` : '—', trend: 'up' as const, icon: '👆' },
-    { label: 'Searches', value: totals?.searches, change: `${totals?.zero_result_searches ?? 0} with no results`, trend: (totals?.zero_result_searches ? 'warn' : 'up') as 'up' | 'warn', icon: '🔍' },
-    { label: 'Saves', value: totals?.saves, change: 'Last 30 days', trend: 'up' as const, icon: '🔖' },
-    { label: 'Open Reports', value: openReports.data?.total, change: openReports.data?.total ? 'Need review' : 'Queue clear', trend: (openReports.data?.total ? 'warn' : 'up') as 'up' | 'warn', icon: '🚩' },
-  ]
+    { label: 'Total Jobs', value: allJobs.data?.total, change: `${publishedJobs.data?.total ?? 0} published`, trend: 'up' as const, icon: 'clipboard' },
+    { label: 'Job Views', value: totals?.job_views, change: 'Last 30 days', trend: 'up' as const, icon: 'eye' },
+    { label: 'Apply Clicks', value: totals?.apply_clicks, change: overview.data ? `${Math.round((overview.data.rates.view_to_apply ?? 0) * 100)}% of views` : '—', trend: 'up' as const, icon: 'pointer' },
+    { label: 'Searches', value: totals?.searches, change: `${totals?.zero_result_searches ?? 0} with no results`, trend: (totals?.zero_result_searches ? 'warn' : 'up') as 'up' | 'warn', icon: 'search' },
+    { label: 'Saves', value: totals?.saves, change: 'Last 30 days', trend: 'up' as const, icon: 'bookmark' },
+    { label: 'Open Reports', value: openReports.data?.total, change: openReports.data?.total ? 'Need review' : 'Queue clear', trend: (openReports.data?.total ? 'warn' : 'up') as 'up' | 'warn', icon: 'flag' },
+  ] as const
 
   const TOP_JOBS_TABLE = (overview.data?.top_jobs ?? []).map(j => ({
     title: j.title, company: j.company_name, clicks: j.apply_clicks, views: j.views, saved: 0, status: 'published',
@@ -111,11 +112,12 @@ export default function Dashboard() {
           <div key={m.label} style={{ background: color.surface.base, border: `1px solid ${color.border.base}`, borderRadius: radius['3xl'], padding: '18px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <span style={{ fontSize: size.xs, color: color.text.secondary, fontWeight: weight.medium }}>{m.label}</span>
-              <span style={{ fontSize: size.lg }}>{m.icon}</span>
+              <IconBadge name={m.icon} size="xs" tone={m.trend === 'warn' ? 'warning' : 'brand'} />
             </div>
             <div style={{ fontSize: size['6xl'], fontWeight: weight.extrabold, color: color.text.primary, letterSpacing: tracking.tighter, marginBottom: 4 }}>{loading ? '—' : (m.value ?? 0).toLocaleString()}</div>
             <div style={{ fontSize: size['2xs'], color: m.trend === 'warn' ? color.warning.base : color.success.base, fontWeight: weight.medium }}>
-              {m.trend === 'up' ? '↑ ' : '⚠ '}{m.change}
+              <Icon name={m.trend === 'up' ? 'arrowUp' : 'alert'} size={11} style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: 4 }} />
+              {m.change}
             </div>
           </div>
         ))}

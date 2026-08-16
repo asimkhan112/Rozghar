@@ -27,6 +27,7 @@ import {
   tracking,
   weight,
 } from "@/design-system"
+import { IconBadge } from "@/components/Icon"
 
 export default function JobsPage() {
   const { filters, page, setFilter, setPage, reset, hasAdvancedFilters } =
@@ -397,7 +398,9 @@ function FilterGroup({
 function EmptyState({ onReset }: { onReset: () => void }) {
   return (
     <div style={{ textAlign: "center", padding: "80px 24px" }}>
-      <div style={{ fontSize: size["8xl"], marginBottom: 16 }}>🔍</div>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+        <IconBadge name="search" size="xl" />
+      </div>
       <h3
         style={{
           fontSize: size["3xl"],

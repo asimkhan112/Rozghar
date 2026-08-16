@@ -17,6 +17,7 @@ import { color, radius, shadow, size, weight } from '@/design-system'
 import { useShareAssets } from '@/hooks/queries'
 import { describeError } from '@/lib/http'
 import type { ShareAssets } from '@/lib/api/share'
+import Icon from '@/components/Icon'
 
 type Platform = 'linkedin' | 'whatsapp' | 'facebook' | 'twitter'
 
@@ -160,12 +161,14 @@ export default function ShareJobModal({
                 disabled={!data}
                 style={{
                   width: '100%', marginTop: 10, padding: '10px 16px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   border: `1px solid ${color.border.base}`, borderRadius: radius.xl,
                   background: color.surface.base, color: color.text.strong,
                   fontSize: size.sm, fontWeight: weight.medium, cursor: 'pointer',
                 }}
               >
-                ⬇ Download image
+                <Icon name="download" size={15} />
+                Download image
               </button>
             </div>
 
@@ -226,12 +229,13 @@ export default function ShareJobModal({
                   disabled={!data}
                   style={{
                     padding: '11px 20px', border: `1px solid ${color.border.base}`,
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
                     borderRadius: radius.xl, background: color.surface.base,
                     color: color.text.strong, fontSize: size.base,
                     fontWeight: weight.medium, cursor: 'pointer',
                   }}
                 >
-                  {copied ? '✓ Copied' : 'Copy caption'}
+                  {copied ? <><Icon name="check" size={15} /> Copied</> : <><Icon name="copy" size={15} /> Copy caption</>}
                 </button>
               </div>
             </div>
