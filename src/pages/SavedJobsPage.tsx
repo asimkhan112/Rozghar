@@ -14,6 +14,7 @@ import { useJobsByIds } from "@/hooks/queries"
 import { describeError } from "@/lib/http"
 import { ErrorPanel, JobGridSkeleton } from "@/components/QueryState"
 import { IconBadge } from "@/components/Icon"
+import SiteFooter from "@/components/SiteFooter"
 
 export default function SavedJobsPage() {
   const savedIds = useSavedIds()
@@ -127,6 +128,7 @@ export default function SavedJobsPage() {
           </div>
         )}
       </div>
+      <SiteFooter />
     </div>
   )
 }

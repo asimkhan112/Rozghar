@@ -115,6 +115,10 @@ async def create_category(
         payload.model_dump(exclude_unset=True), principal=principal, ip_hash=_ip(request)
     )
     await service.session.commit()
+    # `updated_at` is written by the database, so SQLAlchemy expires it after
+    # an UPDATE and would try to reload it lazily while serialising — IO in a
+    # context that cannot do IO. Refreshing here does that read explicitly.
+    await service.session.refresh(entity)
     return CategoryDetail.model_validate(entity)
 
 
@@ -137,10 +141,19 @@ async def update_category(
         ip_hash=_ip(request),
     )
     await service.session.commit()
+    # `updated_at` is written by the database, so SQLAlchemy expires it after
+    # an UPDATE and would try to reload it lazily while serialising — IO in a
+    # context that cannot do IO. Refreshing here does that read explicitly.
+    await service.session.refresh(entity)
     return CategoryDetail.model_validate(entity)
 
 
 # --- admin: locations -----------------------------------------------------
+
+
+@admin.get("/locations", response_model=list[LocationDetail], summary="All locations")
+async def admin_list_locations(service: LocationDep, _: Taxonomy) -> list[LocationDetail]:
+    return [LocationDetail.model_validate(loc) for loc in await service.list_all()]
 
 
 @admin.post(
@@ -156,6 +169,10 @@ async def create_location(
         payload.model_dump(exclude_unset=True), principal=principal, ip_hash=_ip(request)
     )
     await service.session.commit()
+    # `updated_at` is written by the database, so SQLAlchemy expires it after
+    # an UPDATE and would try to reload it lazily while serialising — IO in a
+    # context that cannot do IO. Refreshing here does that read explicitly.
+    await service.session.refresh(entity)
     return LocationDetail.model_validate(entity)
 
 
@@ -174,10 +191,19 @@ async def update_location(
         ip_hash=_ip(request),
     )
     await service.session.commit()
+    # `updated_at` is written by the database, so SQLAlchemy expires it after
+    # an UPDATE and would try to reload it lazily while serialising — IO in a
+    # context that cannot do IO. Refreshing here does that read explicitly.
+    await service.session.refresh(entity)
     return LocationDetail.model_validate(entity)
 
 
 # --- admin: sources -------------------------------------------------------
+
+
+@admin.get("/sources", response_model=list[SourceDetail], summary="All sources")
+async def admin_list_sources(service: SourceDep, _: Taxonomy) -> list[SourceDetail]:
+    return [SourceDetail.model_validate(src) for src in await service.list_all()]
 
 
 @admin.post("/sources", response_model=SourceDetail, status_code=status.HTTP_201_CREATED)
@@ -188,6 +214,10 @@ async def create_source(
         payload.model_dump(exclude_unset=True), principal=principal, ip_hash=_ip(request)
     )
     await service.session.commit()
+    # `updated_at` is written by the database, so SQLAlchemy expires it after
+    # an UPDATE and would try to reload it lazily while serialising — IO in a
+    # context that cannot do IO. Refreshing here does that read explicitly.
+    await service.session.refresh(entity)
     return SourceDetail.model_validate(entity)
 
 
@@ -210,6 +240,10 @@ async def update_source(
         ip_hash=_ip(request),
     )
     await service.session.commit()
+    # `updated_at` is written by the database, so SQLAlchemy expires it after
+    # an UPDATE and would try to reload it lazily while serialising — IO in a
+    # context that cannot do IO. Refreshing here does that read explicitly.
+    await service.session.refresh(entity)
     return SourceDetail.model_validate(entity)
 
 
@@ -243,6 +277,10 @@ async def create_company(
         payload.model_dump(exclude_unset=True), principal=principal, ip_hash=_ip(request)
     )
     await service.session.commit()
+    # `updated_at` is written by the database, so SQLAlchemy expires it after
+    # an UPDATE and would try to reload it lazily while serialising — IO in a
+    # context that cannot do IO. Refreshing here does that read explicitly.
+    await service.session.refresh(entity)
     return CompanyDetail.model_validate(entity)
 
 
@@ -261,4 +299,8 @@ async def update_company(
         ip_hash=_ip(request),
     )
     await service.session.commit()
+    # `updated_at` is written by the database, so SQLAlchemy expires it after
+    # an UPDATE and would try to reload it lazily while serialising — IO in a
+    # context that cannot do IO. Refreshing here does that read explicitly.
+    await service.session.refresh(entity)
     return CompanyDetail.model_validate(entity)

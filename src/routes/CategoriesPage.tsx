@@ -12,6 +12,7 @@ import {
   weight,
 } from "@/design-system"
 import { categoryIcon, IconBadge } from "@/components/Icon"
+import SiteFooter from "@/components/SiteFooter"
 
 /**
  * Category index.
@@ -132,6 +133,7 @@ export default function CategoriesPage() {
           </div>
         )}
       </div>
+      <SiteFooter />
     </div>
   )
 }

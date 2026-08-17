@@ -17,6 +17,7 @@ import {
 } from "@/design-system"
 import Icon, { categoryIcon, IconBadge } from "@/components/Icon"
 import SearchSuggest, { type SuggestChoice, useSuggestNavigation } from "@/components/SearchSuggest"
+import SiteFooter from "@/components/SiteFooter"
 
 const QUICK_FILTERS = [
   "Remote Jobs",
@@ -966,6 +967,7 @@ export default function HomePage() {
           .loc-field { display: none !important; }
         }
       `}</style>
+      <SiteFooter />
     </div>
   )
 }

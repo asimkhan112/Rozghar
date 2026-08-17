@@ -2,6 +2,7 @@ import { Link } from 'react-router'
 import Navbar from '@/components/Navbar'
 import { color, linkReset, radius, size, weight } from '@/design-system'
 import { IconBadge } from '@/components/Icon'
+import SiteFooter from '@/components/SiteFooter'
 
 /**
  * 404 surface.
@@ -39,6 +40,7 @@ export default function NotFoundPage() {
           </div>
         </div>
       </div>
+      <SiteFooter />
     </div>
   )
 }

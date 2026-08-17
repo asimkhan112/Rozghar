@@ -8,7 +8,7 @@ front, served same-origin behind one reverse proxy.
 | Backend | Python 3.12, FastAPI, SQLAlchemy 2.0 (async), PostgreSQL 16, Redis 7 |
 | Frontend | React 19, TypeScript 5.7, Vite 8, React Router 8, React Query 5, Zustand 5 |
 | Size | ~18,800 lines Python, ~11,700 lines TypeScript |
-| API | 58 endpoints + `robots.txt` / `sitemap.xml` |
+| API | 60 endpoints + `robots.txt` / `sitemap.xml` |
 | Tests | 246 backend tests, 57 visual snapshots |
 
 ---
@@ -335,6 +335,14 @@ Honest list of what is missing, so nobody rediscovers it the hard way.
   dashboards read zero on a fresh database.
 - **Public report UI** — `POST /reports` has no consumer; the moderation queue
   is complete on the admin side.
+- **Site settings** — the admin Settings screen renders fields with no endpoint
+  behind them. The save button is disabled and says so rather than reporting a
+  success nothing stored.
+- **Contact form delivery** — the form validates and confirms locally; nothing
+  is sent or persisted yet.
+- **Legal copy** — the Privacy Policy and Terms pages describe how the product
+  actually behaves, but have not been reviewed by a lawyer and still carry
+  `[bracketed]` placeholders for the operating entity.
 - **`og:image` wiring** — share assets are generated and publicly addressable
   but not referenced from any page's meta tags.
 - **Deployment** — no reverse proxy config, TLS, secret management or backup

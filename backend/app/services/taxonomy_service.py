@@ -139,6 +139,15 @@ class LocationService(_BaseTaxonomyService):
         super().__init__(session)
         self.repo = LocationRepository(session)
 
+    async def list_all(self) -> list[Location]:
+        """Every location, archived ones included.
+
+        The admin screen needs this and the public projection cannot provide
+        it: deactivating a location removes it from `list_active`, so a console
+        built on the public list could archive a row and then have no way to
+        show it again."""
+        return await self.repo.list_all()
+
     async def list_public(self, *, country: str | None = None) -> list[Location]:
         return await self.repo.list_active(country=country)
 
@@ -199,6 +208,10 @@ class SourceService(_BaseTaxonomyService):
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session)
         self.repo = SourceRepository(session)
+
+    async def list_all(self) -> list[Source]:
+        """Every source, paused ones included — see `LocationService.list_all`."""
+        return await self.repo.list_all()
 
     async def list_public(self) -> list[Source]:
         return await self.repo.list_active()

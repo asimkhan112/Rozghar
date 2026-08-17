@@ -242,6 +242,58 @@ export function fetchSources(signal?: AbortSignal): Promise<SourceDto[]> {
   return api.get<SourceDto[]>('/sources', { signal })
 }
 
+/** A category as the admin sees it: includes archived rows and the flag that
+ *  says which is which. The public projection filters inactive ones out, so it
+ *  can never drive a screen that has to offer "restore". */
+export interface AdminCategory {
+  id: string
+  name: string
+  slug: string
+  icon: string | null
+  description: string | null
+  job_count: number
+  is_active: boolean
+  sort_order: number
+}
+
+export function fetchAdminCategories(signal?: AbortSignal): Promise<AdminCategory[]> {
+  return api.get<AdminCategory[]>('/admin/categories', { signal })
+}
+
+export interface AdminLocation {
+  id: string
+  city: string | null
+  region: string | null
+  country: string
+  slug: string
+  display_name: string
+  is_remote: boolean
+  is_active: boolean
+  job_count: number
+}
+
+export function fetchAdminLocations(signal?: AbortSignal): Promise<AdminLocation[]> {
+  return api.get<AdminLocation[]>('/admin/locations', { signal })
+}
+
+export interface AdminSource {
+  id: string
+  name: string
+  slug: string
+  type: string
+  base_url: string | null
+  is_active: boolean
+  last_run_at: string | null
+}
+
+export function fetchAdminSources(signal?: AbortSignal): Promise<AdminSource[]> {
+  return api.get<AdminSource[]>('/admin/sources', { signal })
+}
+
+export function updateSource(id: string, changes: Record<string, unknown>) {
+  return api.patch<AdminSource>(`/admin/sources/${id}`, changes)
+}
+
 export function createCategory(body: { name: string; slug: string; icon?: string }) {
   return api.post<CategoryDto>('/admin/categories', body)
 }

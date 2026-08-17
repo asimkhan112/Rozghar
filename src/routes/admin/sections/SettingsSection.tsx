@@ -80,10 +80,21 @@ export default function SettingsSection() {
           </>
         )}
 
+        {/* There is no settings endpoint yet, so this button cannot do anything
+            a reload would keep. It stays visible and disabled rather than
+            reporting a success the server never returned. */}
         <div style={{ paddingTop: 8, borderTop: `1px solid ${color.surface.muted}` }}>
-          <button onClick={() => showToast('Settings saved successfully')} style={{ padding: '10px 24px', background: color.brand.base, border: 'none', borderRadius: radius.xl, color: color.surface.base, fontSize: size.base, fontWeight: weight.semibold, cursor: 'pointer' }}>
+          <button
+            disabled
+            title="Site settings are not stored yet"
+            style={{ padding: '10px 24px', background: color.surface.muted, border: `1px solid ${color.border.base}`, borderRadius: radius.xl, color: color.text.muted, fontSize: size.base, fontWeight: weight.semibold, cursor: 'not-allowed' }}
+          >
             Save Changes
           </button>
+          <div style={{ fontSize: size.xs, color: color.text.muted, marginTop: 8 }}>
+            These fields are not saved anywhere yet — the site-settings API has not been
+            built. Nothing typed here survives a reload.
+          </div>
         </div>
       </div>
     </div>

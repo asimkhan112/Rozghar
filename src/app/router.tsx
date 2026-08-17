@@ -23,6 +23,8 @@ import CategoriesSection from '@/routes/admin/sections/CategoriesSection'
 import LocationsSection from '@/routes/admin/sections/LocationsSection'
 import SourcesSection from '@/routes/admin/sections/SourcesSection'
 import SettingsSection from '@/routes/admin/sections/SettingsSection'
+import PrivacyPolicyPage from '@/routes/legal/PrivacyPolicyPage'
+import TermsPage from '@/routes/legal/TermsPage'
 
 /**
  * Router basename.
@@ -53,6 +55,8 @@ export const router = createBrowserRouter(
         { path: '/categories', element: <CategoriesPage /> },
         { path: '/about', element: <AboutPage /> },
         { path: '/contact', element: <ContactPage /> },
+        { path: '/privacy', element: <PrivacyPolicyPage /> },
+        { path: '/terms', element: <TermsPage /> },
 
         { path: '/admin/login', element: <AdminSignInPage /> },
         {

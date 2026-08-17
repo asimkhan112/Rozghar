@@ -2,6 +2,7 @@ import { Link } from 'react-router'
 import Navbar from '@/components/Navbar'
 import { color, linkReset, radius, size, tracking, weight } from '@/design-system'
 import { IconBadge } from '@/components/Icon'
+import SiteFooter from '@/components/SiteFooter'
 
 /** Trust claims already made on the homepage, restated as the about copy. */
 const PRINCIPLES = [
@@ -59,6 +60,7 @@ export default function AboutPage() {
           </Link>
         </div>
       </div>
+      <SiteFooter />
     </div>
   )
 }

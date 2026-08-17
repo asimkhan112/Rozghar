@@ -13,8 +13,15 @@ export {
   useVerifyJob,
 } from "./useAdminJobs"
 export {
+  useAdminCategories,
+  useAdminLocations,
+  useAdminSources,
   useAnalyticsOverview,
   useAuditFeed,
+  useCreateCategory,
+  useUpdateCategory,
+  useUpdateLocation,
+  useUpdateSource,
   useGenerateDescription,
   useRewriteDescription,
   useCreateLocation,

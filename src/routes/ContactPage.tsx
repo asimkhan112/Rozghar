@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Navbar from '@/components/Navbar'
 import { color, formFieldLabel, formInput, formSelect, formTextarea, radius, size, tracking, weight } from '@/design-system'
 import { IconBadge } from '@/components/Icon'
+import SiteFooter from '@/components/SiteFooter'
 
 const SUBJECTS = ['Report a listing', 'Employer enquiry', 'Feedback', 'Something else']
 
@@ -111,6 +112,7 @@ export default function ContactPage() {
           </form>
         )}
       </div>
+      <SiteFooter />
     </div>
   )
 }

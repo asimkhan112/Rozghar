@@ -9,7 +9,11 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  createCategory,
   createLocation,
+  fetchAdminCategories,
+  fetchAdminLocations,
+  fetchAdminSources,
   fetchAudit,
   fetchOverview,
   fetchReports,
@@ -17,6 +21,9 @@ import {
   fetchSourcePerformance,
   fetchSources,
   moderateReport,
+  updateCategory,
+  updateLocation,
+  updateSource,
   type AnalyticsWindow,
   type NewLocation,
   type ReportQuery,
@@ -132,5 +139,77 @@ export function useSources() {
     queryKey: queryKeys.admin.sources(),
     queryFn: ({ signal }) => fetchSources(signal),
     staleTime: STALE_TAXONOMY,
+  })
+}
+
+// --- taxonomy administration ---------------------------------------------
+
+/**
+ * Taxonomy as the console sees it: archived rows included.
+ *
+ * These read the admin projections rather than the public ones. A screen that
+ * offers "archive" has to be able to show what it archived, and the public
+ * endpoints filter inactive rows out — so a console built on them can put a
+ * category beyond reach with one click.
+ */
+export function useAdminCategories() {
+  return useQuery({
+    queryKey: queryKeys.admin.taxonomy.categories(),
+    queryFn: ({ signal }) => fetchAdminCategories(signal),
+  })
+}
+
+export function useAdminLocations() {
+  return useQuery({
+    queryKey: queryKeys.admin.taxonomy.locations(),
+    queryFn: ({ signal }) => fetchAdminLocations(signal),
+  })
+}
+
+export function useAdminSources() {
+  return useQuery({
+    queryKey: queryKeys.admin.taxonomy.sources(),
+    queryFn: ({ signal }) => fetchAdminSources(signal),
+  })
+}
+
+/** Both the admin list and every public dropdown are stale after a write. */
+function invalidateTaxonomy(client: ReturnType<typeof useQueryClient>) {
+  void client.invalidateQueries({ queryKey: queryKeys.admin.taxonomy.all })
+  void client.invalidateQueries({ queryKey: queryKeys.taxonomy.all })
+}
+
+export function useCreateCategory() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { name: string; slug: string; icon?: string }) => createCategory(body),
+    onSuccess: () => invalidateTaxonomy(client),
+  })
+}
+
+export function useUpdateCategory() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, changes }: { id: string; changes: Record<string, unknown> }) =>
+      updateCategory(id, changes),
+    onSuccess: () => invalidateTaxonomy(client),
+  })
+}
+
+export function useUpdateLocation() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, changes }: { id: string; changes: Record<string, unknown> }) =>
+      updateLocation(id, changes),
+    onSuccess: () => invalidateTaxonomy(client),
+  })
+}
+
+export function useUpdateSource() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, changes }: { id: string; changes: Record<string, unknown> }) =>
+      updateSource(id, changes),
+    onSuccess: () => invalidateTaxonomy(client),
   })
 }

@@ -30,6 +30,7 @@ import {
 } from "@/design-system"
 import { IconBadge } from "@/components/Icon"
 import SearchSuggest, { type SuggestChoice, useSuggestNavigation } from "@/components/SearchSuggest"
+import SiteFooter from "@/components/SiteFooter"
 
 export default function JobsPage() {
   const { filters, page, setFilter, setPage, reset, hasAdvancedFilters } =
@@ -396,6 +397,7 @@ export default function JobsPage() {
             )}
           </>
         )}
+        <SiteFooter />
       </div>
     </div>
   )

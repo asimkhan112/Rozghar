@@ -20,6 +20,7 @@ import {
 import { useIsSaved, useToggleSave } from "@/stores/useSavedJobsStore"
 import NotFoundPage from "@/routes/NotFoundPage"
 import Icon, { IconBadge } from "@/components/Icon"
+import SiteFooter from "@/components/SiteFooter"
 
 export default function JobDetailPage() {
   const { slug } = useParams()
@@ -770,6 +771,7 @@ export default function JobDetailPage() {
         @media (min-width: 900px) { .mobile-apply-bar { display: none !important; } }
         @media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr !important; } }
       `}</style>
+      <SiteFooter />
     </div>
   )
 }

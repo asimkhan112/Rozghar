@@ -38,6 +38,15 @@ export const queryKeys = {
   },
   admin: {
     all: ['admin'] as const,
+    /** Admin taxonomy reads. Kept apart from `taxonomy`, which is the public
+     *  projection: the two return different rows, and sharing a key would let
+     *  an archived category leak into a public dropdown. */
+    taxonomy: {
+      all: ['admin', 'taxonomy'] as const,
+      categories: () => ['admin', 'taxonomy', 'categories'] as const,
+      locations: () => ['admin', 'taxonomy', 'locations'] as const,
+      sources: () => ['admin', 'taxonomy', 'sources'] as const,
+    },
     jobs: {
       all: ['admin', 'jobs'] as const,
       lists: () => [...queryKeys.admin.jobs.all, 'list'] as const,
