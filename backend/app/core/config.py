@@ -11,6 +11,38 @@ from typing import Literal
 from pydantic import Field, PostgresDsn, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+#: Query parameters libpq understands and asyncpg does not. Passing them
+#: through produces `connect() got an unexpected keyword argument 'sslmode'`
+#: at first connection — a failure that only appears against a hosted database,
+#: never locally, which is the worst place for it to first show up.
+_LIBPQ_ONLY_PARAMS = frozenset({"sslmode", "channel_binding", "target_session_attrs", "options"})
+
+
+def _as_driver_url(raw: str, driver: Literal["asyncpg", "psycopg2"]) -> str:
+    """Rewrite a hosted-Postgres URL for a specific SQLAlchemy driver.
+
+    Two things have to change. The scheme has to name the driver, because
+    providers hand out bare `postgres://` or `postgresql://`. And for asyncpg
+    the libpq-only query parameters have to come off; TLS is requested through
+    `connect_args` instead, which is what `database_requires_ssl` is for.
+    """
+    url = raw.strip()
+    for prefix in ("postgresql+asyncpg://", "postgresql+psycopg2://", "postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            url = url[len(prefix):]
+            break
+
+    if driver == "asyncpg":
+        base, _, query = url.partition("?")
+        kept = [
+            part
+            for part in query.split("&")
+            if part and part.split("=")[0].lower() not in _LIBPQ_ONLY_PARAMS
+        ]
+        url = f"{base}?{'&'.join(kept)}" if kept else base
+
+    return f"postgresql+{driver}://{url}"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -40,6 +72,17 @@ class Settings(BaseSettings):
     site_url: str = "http://localhost:8443"
 
     # --- database --------------------------------------------------------
+    #: A complete connection string, which is how hosted Postgres is supplied:
+    #: Neon, Railway, Supabase and Heroku all hand out one URL rather than five
+    #: separate settings. When present it wins; when absent the `postgres_*`
+    #: parts below are assembled instead, so a local checkout still runs with
+    #: no configuration at all.
+    #:
+    #: Nothing else in the application reads it — `database_url` and
+    #: `sync_database_url` remain the only two accessors, so moving between
+    #: hosts is an environment change rather than a code change.
+    database_url_override: str = Field(default="", alias="DATABASE_URL")
+
     postgres_host: str = "localhost"
     postgres_port: int = 5432
     postgres_user: str = "rozgar"
@@ -153,6 +196,8 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         """Async driver URL, used by the application at runtime."""
+        if self.database_url_override:
+            return _as_driver_url(self.database_url_override, "asyncpg")
         return str(
             PostgresDsn.build(
                 scheme="postgresql+asyncpg",
@@ -168,6 +213,8 @@ class Settings(BaseSettings):
     @property
     def sync_database_url(self) -> str:
         """Sync driver URL. Alembic runs migrations through this."""
+        if self.database_url_override:
+            return _as_driver_url(self.database_url_override, "psycopg2")
         return str(
             PostgresDsn.build(
                 scheme="postgresql+psycopg2",
@@ -178,6 +225,28 @@ class Settings(BaseSettings):
                 path=self.postgres_db,
             )
         )
+
+    #: Set when the database is reached through a transaction pooler — Neon's
+    #: `-pooler` endpoint or Railway's PgBouncer. Detected from the host, and
+    #: overridable for a pooler whose name does not advertise itself.
+    database_pooled_override: bool | None = Field(default=None, alias="DATABASE_POOLED")
+
+    @property
+    def database_pooled(self) -> bool:
+        if self.database_pooled_override is not None:
+            return self.database_pooled_override
+        url = self.database_url_override.lower()
+        return "-pooler." in url or "pgbouncer" in url
+
+    @property
+    def database_requires_ssl(self) -> bool:
+        """Whether the supplied URL asked for TLS.
+
+        Hosted Postgres always does. The flag is read here rather than left in
+        the URL because asyncpg rejects libpq's `sslmode` parameter — see
+        `_as_driver_url`.
+        """
+        return "sslmode=" in self.database_url_override or "ssl=" in self.database_url_override
 
     @property
     def is_production(self) -> bool:

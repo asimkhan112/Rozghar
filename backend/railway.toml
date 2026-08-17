@@ -1,0 +1,21 @@
+# Railway deployment.
+#
+# Nixpacks reads pyproject.toml and installs the project itself; only the
+# start command needs stating, because two things about it are not guessable:
+# migrations must run before the first request, and the port is injected.
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+# Migrations run in the same command as the server rather than as a separate
+# release step, because Railway does not guarantee a release phase on every
+# plan. `alembic upgrade head` is idempotent, so running it on each boot is
+# safe; if it fails the container exits and the deploy is marked bad, which is
+# the correct outcome — serving requests against a half-migrated schema is
+# worse than not starting.
+startCommand = "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
