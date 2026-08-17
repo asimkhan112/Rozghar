@@ -12,6 +12,10 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "sqlalchemy[asyncio]>=2.0.36",
     "asyncpg>=0.30",
+    # Alembic connects through `sync_database_url`, so the sync driver is a
+    # runtime dependency wherever migrations run — which is every boot, since
+    # `alembic upgrade head` is the first half of the deploy start command.
+    "psycopg2-binary>=2.9",
     "alembic>=1.14",
     "pydantic>=2.10",
     "pydantic-settings>=2.6",
@@ -28,7 +32,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.3", "pytest-asyncio>=0.24", "ruff>=0.8", "httpx2>=0.1", "psycopg2-binary>=2.9"]
+dev = ["pytest>=8.3", "pytest-asyncio>=0.24", "ruff>=0.8", "httpx2>=0.1"]
 
 [tool.setuptools.packages.find]
 include = ["app*"]
