@@ -85,6 +85,19 @@ def resolve_window(since: date | None, until: date | None) -> DateWindow:
     return DateWindow(since=start, until=end)
 
 
+def _change(current: int, previous: int) -> float | None:
+    """Period-over-period movement, or `None` when there is nothing to compare.
+
+    Growth from zero is not a large percentage, it is an undefined one. Every
+    analytics dashboard that returns a number here ends up printing something
+    like "+∞%" or a meaningless "+100%" on its first quiet week, and somebody
+    eventually reports it as a bug.
+    """
+    if not previous:
+        return None
+    return round((current - previous) / previous, 4)
+
+
 def _rate(numerator: int, denominator: int) -> float:
     """Ratios are computed, never stored. Rounded to four places so a rate
     reads as a rate rather than as floating-point noise."""
@@ -237,6 +250,83 @@ class AnalyticsService:
             "top_queries": [
                 {"query": q, "count": n, "zero_result_count": z} for q, n, z in top_queries
             ],
+        }
+
+    async def traffic(self, window: DateWindow, *, locations: int = 5) -> dict[str, Any]:
+        """Audience shape: how many visits, how long, how many left at once.
+
+        Deliberately not folded into `overview`. That method reports on
+        *listings* and reads the rollups; this one reports on *sessions* and
+        has to read the raw events, because a session is not something a
+        per-job daily counter can describe. Two questions, two grains, two
+        methods — merging them would hide a much more expensive query behind a
+        name that promises a cheap one.
+
+        The location breakdown rides along because it answers the same
+        editorial question the tiles do — where the audience is — and the panel
+        that renders it sits on the same screen. Its source is stated in
+        `AnalyticsRepository.top_locations`: the rollups, not the events.
+
+        `bounce_rate` is computed here rather than in SQL for the reason every
+        other rate in this file is: a stored or hand-rolled ratio eventually
+        disagrees with the two numbers it came from, and both of those numbers
+        are already in the response for the reader to check.
+        """
+        summary = await self.repo.traffic(since=window.since, until=window.until)
+        top = await self.repo.top_locations(since=window.since, until=window.until, limit=locations)
+        sessions = summary["unique_sessions"]
+        return {
+            "range": {"from": window.since, "to": window.until},
+            "page_views": summary["page_views"],
+            "unique_sessions": sessions,
+            # Rounded to whole seconds. Sub-second precision on an average
+            # built from browser-reported activity is false confidence.
+            "avg_session_seconds": round(summary["avg_session_seconds"]),
+            "bounce_rate": _rate(summary["bounced_sessions"], sessions),
+            "views_per_session": _rate(summary["page_views"], sessions),
+            "top_locations": [
+                {
+                    "location_id": row["location_id"],
+                    "name": row["name"],
+                    "slug": row["slug"],
+                    "views": row["views"],
+                    "apply_clicks": row["apply_clicks"],
+                    "share": _rate(row["views"], row["total_views"]),
+                }
+                for row in top
+            ],
+        }
+
+    async def visitor_trends(self) -> dict[str, Any]:
+        """Today, the last seven days, the last thirty — each against the
+        period before it.
+
+        Anchored to today rather than to a caller-supplied window, which is why
+        this is not part of `traffic`: "last week" is only meaningful relative
+        to now, and a `from`/`to` pair would make the comparison arbitrary.
+
+        Each period is counted independently. See `VISITOR_PERIODS` for why a
+        week is not the sum of its days.
+        """
+        today = datetime.now(UTC).date()
+        counts = await self.repo.visitor_trends(today=today)
+
+        def period(name: str) -> dict[str, Any]:
+            visitors = counts[f"{name}_visitors"]
+            previous = counts[f"{name}_prev_visitors"]
+            return {
+                "visitors": visitors,
+                "page_views": counts[f"{name}_views"],
+                "views_per_session": _rate(counts[f"{name}_views"], visitors),
+                "previous_visitors": previous,
+                "change": _change(visitors, previous),
+            }
+
+        return {
+            "as_of": today,
+            "daily": period("daily"),
+            "weekly": period("weekly"),
+            "monthly": period("monthly"),
         }
 
     async def job_performance(self, window: DateWindow, *, limit: int = 50) -> list[dict[str, Any]]:

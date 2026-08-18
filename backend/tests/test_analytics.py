@@ -9,7 +9,7 @@ it is idempotent, and it agrees with the raw events it came from.
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from uuid import uuid4
 
 import pytest
@@ -441,9 +441,214 @@ def test_window_is_clamped(client, world):
     assert window.days <= 365
 
 
+# --- traffic --------------------------------------------------------------
+
+
+def traffic(client: TestClient) -> dict:
+    r = client.get(f"{DASH}/traffic", headers=auth(token_for(client, ADMIN_EMAIL)))
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_traffic_is_grained_by_session_not_by_event(client, world):
+    """The tiles count visits and page views, which are different numbers.
+
+    `send` opens a new session per call, so this is one visitor who read two
+    listings and applied, and one who opened a single listing and left.
+    """
+    send(
+        client,
+        [
+            {"type": "job_view", "job_id": world["popular"]},
+            {"type": "job_view", "job_id": world["quiet"]},
+            {"type": "apply_click", "job_id": world["popular"]},
+        ],
+    )
+    send(client, [{"type": "job_view", "job_id": world["popular"]}])
+
+    body = traffic(client)
+    # Three views out of four events: the apply click is not a page view.
+    assert body["page_views"] == 3
+    assert body["unique_sessions"] == 2
+    assert body["views_per_session"] == 1.5
+
+
+def test_bounce_is_a_session_with_one_event(client, world):
+    send(client, [{"type": "job_view", "job_id": world["popular"]}])
+    send(
+        client,
+        [
+            {"type": "job_view", "job_id": world["popular"]},
+            {"type": "apply_click", "job_id": world["popular"]},
+        ],
+    )
+    assert traffic(client)["bounce_rate"] == 0.5
+
+
+def test_avg_session_duration_spans_first_event_to_last(client, world):
+    """Last event minus first, not a guess at dwell time on the final page."""
+    now = datetime.now(UTC)
+    r = client.post(
+        EVENTS,
+        json={
+            "session_id": str(uuid4()),
+            "events": [
+                {
+                    "type": "job_view",
+                    "job_id": world["popular"],
+                    "occurred_at": (now - timedelta(minutes=6)).isoformat(),
+                },
+                {
+                    "type": "job_view",
+                    "job_id": world["quiet"],
+                    "occurred_at": (now - timedelta(minutes=2)).isoformat(),
+                },
+            ],
+        },
+    )
+    assert r.status_code == 202, r.text
+    assert traffic(client)["avg_session_seconds"] == 240
+
+
+def test_traffic_is_zero_safe_before_any_traffic(client, world):
+    """Every one of these is a division by the session count. A dashboard that
+    500s on a quiet day is worse than one that reads zero."""
+    body = traffic(client)
+    assert body["page_views"] == 0
+    assert body["unique_sessions"] == 0
+    assert body["avg_session_seconds"] == 0
+    assert body["bounce_rate"] == 0.0
+    assert body["views_per_session"] == 0.0
+    assert body["top_locations"] == []
+
+
+def test_top_locations_come_from_traffic_not_from_the_catalogue(client, world):
+    """Both listings sit in one location, so the panel reports the views they
+    earned rather than the number of listings published there."""
+    send(client, [{"type": "job_view", "job_id": world["popular"]}])
+    send(client, [{"type": "job_view", "job_id": world["quiet"]}])
+    rollup()
+
+    locations = traffic(client)["top_locations"]
+    assert [loc["name"] for loc in locations] == ["Lahore"]
+    assert locations[0]["views"] == 2
+    # One location holds all the located traffic in the window.
+    assert locations[0]["share"] == 1.0
+
+
+# --- visitors -------------------------------------------------------------
+
+
+def visitors(client: TestClient) -> dict:
+    r = client.get(f"{DASH}/visitors", headers=auth(token_for(client, ADMIN_EMAIL)))
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def utc_midnight() -> datetime:
+    """Today's boundary, which is the one the endpoint counts against."""
+    return datetime.combine(datetime.now(UTC).date(), time.min, tzinfo=UTC)
+
+
+def write_views(rows: list[tuple[datetime, str, str]]) -> None:
+    """Write view events straight to the table, past the ingest endpoint.
+
+    Ingest refuses anything backdated more than two days, deliberately — so it
+    is not a route to a populated thirty day window. These tests are about the
+    reporting arithmetic, and the ingest path has its own tests above.
+    """
+
+    async def run() -> None:
+        async with SessionFactory() as s:
+            for occurred_at, session_id, job_id in rows:
+                await s.execute(
+                    text("SELECT ensure_month_partition('analytics_events', :month)"),
+                    {"month": occurred_at.date()},
+                )
+                await s.execute(
+                    text(
+                        """
+                        INSERT INTO analytics_events
+                            (occurred_at, event_type, session_id, job_id)
+                        VALUES
+                            (:at, CAST('job_view' AS event_type), :sid, :jid)
+                        """
+                    ),
+                    {"at": occurred_at, "sid": session_id, "jid": job_id},
+                )
+            await s.commit()
+
+    asyncio.run(run())
+
+
+def test_a_week_is_not_the_sum_of_its_days(client, world):
+    """The property the whole panel rests on.
+
+    Visitors are distinct sessions, and a distinct count is not additive. One
+    reader who came back yesterday and today is two daily visitors and one
+    weekly visitor — never three.
+    """
+    midnight = utc_midnight()
+    job = world["popular"]
+    returning, today_only, this_week, this_month = (str(uuid4()) for _ in range(4))
+    write_views(
+        [
+            (midnight, returning, job),
+            (midnight - timedelta(hours=1), returning, job),  # yesterday, same reader
+            (midnight, today_only, job),
+            (midnight, today_only, job),  # a second page, same visit
+            (midnight - timedelta(days=5), this_week, job),
+            (midnight - timedelta(days=20), this_month, job),
+        ]
+    )
+
+    body = visitors(client)
+    assert body["daily"]["visitors"] == 2
+    assert body["daily"]["previous_visitors"] == 1
+    # Three page views across two visits today.
+    assert body["daily"]["views_per_session"] == 1.5
+    # Not 3: yesterday's visitor is the same person as one of today's.
+    assert body["weekly"]["visitors"] == 3
+    assert body["monthly"]["visitors"] == 4
+
+
+def test_change_is_undefined_rather_than_infinite(client, world):
+    """Growth from nothing is not a percentage, and must not be printed as one."""
+    write_views([(utc_midnight(), str(uuid4()), world["popular"])])
+
+    body = visitors(client)
+    assert body["daily"]["visitors"] == 1
+    for period in ("daily", "weekly", "monthly"):
+        assert body[period]["change"] is None, period
+
+
+def test_change_compares_against_the_period_before(client, world):
+    midnight = utc_midnight()
+    job = world["popular"]
+    write_views(
+        [(midnight, str(uuid4()), job) for _ in range(3)]
+        + [(midnight - timedelta(hours=2), str(uuid4()), job) for _ in range(2)]
+    )
+
+    daily = visitors(client)["daily"]
+    assert (daily["visitors"], daily["previous_visitors"]) == (3, 2)
+    assert daily["change"] == 0.5
+
+
+def test_visitors_are_zero_safe_before_any_traffic(client, world):
+    """Every rate here divides by a visitor count. A dashboard that 500s on a
+    quiet day is worse than one that reads zero."""
+    body = visitors(client)
+    for period in ("daily", "weekly", "monthly"):
+        assert body[period]["visitors"] == 0
+        assert body[period]["page_views"] == 0
+        assert body[period]["views_per_session"] == 0.0
+        assert body[period]["change"] is None, period
+
+
 def test_dashboards_require_analytics_view(client, world):
     t = token_for(client, EDITOR_EMAIL)
-    for path in ("overview", "jobs", "sources", "search"):
+    for path in ("overview", "jobs", "sources", "search", "traffic", "visitors"):
         r = client.get(f"{DASH}/{path}", headers=auth(t))
         assert r.status_code == 403, path
     assert client.get(f"{DASH}/overview").status_code == 401

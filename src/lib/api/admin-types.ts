@@ -129,6 +129,58 @@ export interface AnalyticsOverviewDto {
   top_queries: { query: string; count: number; zero_result_count: number }[]
 }
 
+/**
+ * Session-grained traffic. A separate call from the overview because it is a
+ * separate grain: the overview counts what happened to *listings*, this counts
+ * what happened in *visits*.
+ */
+export interface TrafficSummaryDto {
+  range: { from: string; to: string }
+  page_views: number
+  unique_sessions: number
+  /** Last event minus first, averaged over sessions. Single-event visits
+   *  measure zero and stay in the average. */
+  avg_session_seconds: number
+  /** Sessions that produced exactly one event. */
+  bounce_rate: number
+  views_per_session: number
+  top_locations: {
+    location_id: string
+    name: string
+    slug: string
+    views: number
+    apply_clicks: number
+    /** Share of all located views in the window — the denominator counts every
+     *  location with traffic, so a truncated list sums to less than 1. */
+    share: number
+  }[]
+}
+
+export interface VisitorPeriodDto {
+  visitors: number
+  page_views: number
+  views_per_session: number
+  previous_visitors: number
+  /** `null` when the previous period had no visitors — growth from zero is
+   *  undefined, not infinite, and the UI has to say so rather than print it. */
+  change: number | null
+}
+
+/**
+ * Visitors by period, each against the period before it.
+ *
+ * Takes no window: "vs last week" only means anything relative to now. Each
+ * period is a distinct-session count in its own right — a week is not the sum
+ * of its days, because a reader who returns is one weekly visitor and several
+ * daily ones.
+ */
+export interface VisitorTrendsDto {
+  as_of: string
+  daily: VisitorPeriodDto
+  weekly: VisitorPeriodDto
+  monthly: VisitorPeriodDto
+}
+
 export interface SourcePerformanceDto {
   source_id: string
   name: string

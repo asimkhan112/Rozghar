@@ -20,6 +20,8 @@ import type {
   SearchAnalyticsDto,
   SourceDto,
   SourcePerformanceDto,
+  TrafficSummaryDto,
+  VisitorTrendsDto,
 } from './admin-types'
 import type { CategoryDto, LocationDto } from './types'
 
@@ -211,6 +213,18 @@ export function fetchOverview(
   signal?: AbortSignal,
 ): Promise<AnalyticsOverviewDto> {
   return api.get<AnalyticsOverviewDto>('/admin/analytics/overview', { params: window, signal })
+}
+
+export function fetchTraffic(
+  window: AnalyticsWindow,
+  signal?: AbortSignal,
+): Promise<TrafficSummaryDto> {
+  return api.get<TrafficSummaryDto>('/admin/analytics/traffic', { params: window, signal })
+}
+
+/** Takes no window — the periods are fixed and anchored to today. */
+export function fetchVisitorTrends(signal?: AbortSignal): Promise<VisitorTrendsDto> {
+  return api.get<VisitorTrendsDto>('/admin/analytics/visitors', { signal })
 }
 
 export function fetchSourcePerformance(

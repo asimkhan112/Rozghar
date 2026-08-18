@@ -6,6 +6,7 @@ import {
   radius, shadow, size, weight, workTypeChip,
 } from '@/design-system'
 import { useIsSaved, useToggleSave } from '@/stores/useSavedJobsStore'
+import { trackJobSaved } from '@/lib/analytics'
 
 interface JobCardProps {
   job: Job
@@ -23,6 +24,9 @@ export default function JobCard({ job, compact }: JobCardProps) {
   const handleSave = (e: React.MouseEvent) => {
     e.stopPropagation()
     setSaving(true)
+    // The save is the event; the un-save is not. A negative counter would let
+    // `jobs.save_count` drift below the number of saves that happened.
+    if (!isSaved) trackJobSaved(job.id)
     toggleSave(job.id)
     setTimeout(() => setSaving(false), 600)
   }

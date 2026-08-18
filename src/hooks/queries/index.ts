@@ -31,5 +31,7 @@ export {
   useShareAssets,
   useSourcePerformance,
   useSources,
+  useTraffic,
+  useVisitorTrends,
 } from "./useAdminData"
 export * from "./useSuggest"

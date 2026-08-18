@@ -18,6 +18,8 @@ import {
   fetchOverview,
   fetchReports,
   fetchSearchAnalytics,
+  fetchTraffic,
+  fetchVisitorTrends,
   fetchSourcePerformance,
   fetchSources,
   moderateReport,
@@ -66,6 +68,20 @@ export function useAnalyticsOverview(window: AnalyticsWindow = {}) {
   return useQuery({
     queryKey: queryKeys.admin.analytics.overview(window),
     queryFn: ({ signal }) => fetchOverview(window, signal),
+  })
+}
+
+export function useVisitorTrends() {
+  return useQuery({
+    queryKey: queryKeys.admin.analytics.visitors(),
+    queryFn: ({ signal }) => fetchVisitorTrends(signal),
+  })
+}
+
+export function useTraffic(window: AnalyticsWindow = {}) {
+  return useQuery({
+    queryKey: queryKeys.admin.analytics.traffic(window),
+    queryFn: ({ signal }) => fetchTraffic(window, signal),
   })
 }
 

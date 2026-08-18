@@ -84,6 +84,61 @@ class TopJob(ORMModel):
     ctr: float
 
 
+class TopLocation(ORMModel):
+    location_id: UUID
+    name: str
+    slug: str
+    views: int
+    apply_clicks: int
+    #: Share of all located views in the window — the denominator is every
+    #: location with traffic, not just the ones returned, so a truncated list
+    #: does not add up to 100%.
+    share: float
+
+
+class TrafficSummary(ORMModel):
+    """Audience shape, grained by session rather than by listing.
+
+    Separate from `AnalyticsOverview` because the grain is different and so is
+    the cost: these come from the raw event partitions, not the rollups.
+    """
+
+    range: AnalyticsRange
+    page_views: int
+    unique_sessions: int
+    #: Last event minus first, averaged over sessions. A single-event session
+    #: measures zero — nothing is emitted when a reader simply stops reading —
+    #: and those sessions stay in the average rather than being filtered out.
+    avg_session_seconds: int
+    #: Sessions that produced exactly one event, over all sessions.
+    bounce_rate: float
+    views_per_session: float
+    top_locations: list[TopLocation]
+
+
+class VisitorPeriod(ORMModel):
+    visitors: int
+    page_views: int
+    views_per_session: float
+    previous_visitors: int
+    #: `None` when the previous period had no visitors. Growth from zero is
+    #: undefined, not infinite, and the UI has to say so rather than print it.
+    change: float | None
+
+
+class VisitorTrends(ORMModel):
+    """Visitors by period, each against the period before it.
+
+    Anchored to today rather than to a window: "vs last week" only means
+    anything relative to now.
+    """
+
+    as_of: date
+    daily: VisitorPeriod
+    weekly: VisitorPeriod
+    monthly: VisitorPeriod
+
+
 class TopQuery(ORMModel):
     query: str
     count: int

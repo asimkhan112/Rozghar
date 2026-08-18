@@ -16,7 +16,7 @@ the partition helpers are SQL functions by design.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -35,6 +35,21 @@ ROLLUP_COLUMNS: dict[str, EventType] = {
     "source_clicks": EventType.SOURCE_CLICK,
     "saves": EventType.JOB_SAVED,
     "reports": EventType.REPORT_CREATED,
+}
+
+
+#: The three visitor cards, each as (current, previous) day offsets from today.
+#: A range is `[today + start, today + end)` in whole days, so the current day
+#: runs `(0, 1)` and the seven-day window ends today rather than yesterday.
+#:
+#: Every period is counted separately and none is derived from another. Visitor
+#: counts are distinct-session counts, and a distinct count is not additive: a
+#: reader who came back on Tuesday and Thursday is one weekly visitor and two
+#: daily ones. Summing days into a week would report them twice.
+VISITOR_PERIODS: dict[str, tuple[tuple[int, int], tuple[int, int]]] = {
+    "daily": ((0, 1), (-1, 0)),
+    "weekly": ((-6, 1), (-13, -6)),
+    "monthly": ((-29, 1), (-59, -29)),
 }
 
 
@@ -330,6 +345,182 @@ class AnalyticsRepository:
             }
             for r in rows.all()
         ]
+
+    async def traffic(self, *, since: date, until: date) -> dict[str, Any]:
+        """Session-shaped traffic metrics.
+
+        Read from `analytics_events` rather than the rollups, and not by
+        oversight: every one of these numbers is grained by *session*, and the
+        rollup is grained by `(day, job_id)`. Its `unique_sessions` column
+        carries the warning in its own docstring — summing it across days
+        counts a returning visitor once per day. A distinct count over the raw
+        events is the only way to get the real figure, and a duration or a
+        bounce cannot be derived from a per-job counter at all.
+
+        One pass, one grouping. The window is a date range on a partitioned
+        table, so the planner prunes to the months involved rather than
+        touching the whole history.
+
+        Two definitions worth stating, because dashboards that leave them
+        implicit get misread:
+
+        *Duration* is last event minus first event within the window. The dwell
+        time on the final page of a visit is unobservable — nothing is emitted
+        when a reader simply stops reading — so a session with one event
+        measures zero. Those sessions are kept in the average rather than
+        filtered out; excluding them would report the average length of
+        *engaged* visits under a label that says "per visit".
+
+        *A bounce* is a session that produced exactly one event. A visitor who
+        opened one listing and left is the thing the number is for.
+
+        Sessions straddling the window edge are counted only for the part
+        inside it, which is the same convention every other metric here uses.
+        """
+        row = (
+            await self.session.execute(
+                text(
+                    """
+                    WITH visit AS (
+                        SELECT session_id,
+                               count(*) AS events,
+                               count(*) FILTER (WHERE event_type = 'job_view') AS views,
+                               extract(
+                                   epoch FROM max(occurred_at) - min(occurred_at)
+                               ) AS seconds
+                          FROM analytics_events
+                         WHERE occurred_at >= CAST(:since AS date)
+                           AND occurred_at <  CAST(:until AS date) + interval '1 day'
+                         GROUP BY session_id
+                    )
+                    SELECT coalesce(sum(views), 0),
+                           count(*),
+                           coalesce(avg(seconds), 0),
+                           count(*) FILTER (WHERE events = 1)
+                      FROM visit
+                    """
+                ),
+                {"since": since, "until": until},
+            )
+        ).one()
+        return {
+            "page_views": int(row[0]),
+            "unique_sessions": int(row[1]),
+            "avg_session_seconds": float(row[2]),
+            "bounced_sessions": int(row[3]),
+        }
+
+    async def top_locations(
+        self, *, since: date, until: date, limit: int = 5
+    ) -> list[dict[str, Any]]:
+        """Where the demand is, by views on listings in each location.
+
+        From the rollups, which already carry `location_id` copied down from
+        the events — so a listing re-homed next month does not rewrite last
+        month's geography.
+
+        Locations with no traffic are excluded rather than listed at zero. The
+        panel ranks demand; a tail of zeroes is noise, and the catalogue view
+        of the same question is already answered by `locations.job_count`.
+
+        `total_views` is a window function over the full grouped set rather
+        than a sum of the rows returned, so the shares stay honest after the
+        LIMIT: five locations out of forty should add up to well under 100%,
+        not to exactly it.
+        """
+        rows = await self.session.execute(
+            text(
+                """
+                WITH by_location AS (
+                    SELECT l.id, l.display_name, l.city, l.slug,
+                           sum(r.views) AS views,
+                           sum(r.apply_clicks) AS apply_clicks
+                      FROM analytics_daily_rollups r
+                      JOIN locations l ON l.id = r.location_id
+                     WHERE r.day BETWEEN :since AND :until
+                     GROUP BY l.id, l.display_name, l.city, l.slug
+                    HAVING sum(r.views) > 0
+                )
+                SELECT id, display_name, city, slug, views, apply_clicks,
+                       sum(views) OVER () AS total_views
+                  FROM by_location
+                 ORDER BY views DESC, display_name
+                 LIMIT :limit
+                """
+            ),
+            {"since": since, "until": until, "limit": limit},
+        )
+        return [
+            {
+                "location_id": r[0],
+                # `city` is what a chart row has space for; `display_name` is
+                # the fallback for a location that has none, such as "Remote".
+                "name": r[2] or r[1],
+                "slug": r[3],
+                "views": int(r[4]),
+                "apply_clicks": int(r[5]),
+                "total_views": int(r[6]),
+            }
+            for r in rows.all()
+        ]
+
+    async def visitor_trends(self, *, today: date) -> dict[str, int]:
+        """Distinct visitors for each card, and for the period before it.
+
+        Six distinct-session counts and six view counts in one pass. The
+        alternative is twelve queries over overlapping ranges of the same
+        partitions, which is twelve scans to answer one panel.
+
+        Boundaries are computed here as explicit UTC instants rather than left
+        to Postgres to derive from a bare `date`, which it resolves against
+        whatever the server's `TimeZone` happens to be. A dashboard whose "day"
+        silently moves with a database setting is not one anybody can reconcile
+        against another number later.
+
+        That does mean the day boundary is midnight UTC — five hours before
+        midnight in Karachi. It matches the rest of the analytics, which is the
+        property worth having: one convention the whole dashboard shares beats
+        a per-panel one that is locally nicer and globally inconsistent.
+        """
+        midnight = datetime.combine(today, time.min, tzinfo=UTC)
+        params: dict[str, Any] = {}
+        selects: list[str] = []
+
+        for name, ranges in VISITOR_PERIODS.items():
+            for suffix, (start, end) in zip(("", "_prev"), ranges, strict=True):
+                key = f"{name}{suffix}"
+                params[f"{key}_from"] = midnight + timedelta(days=start)
+                params[f"{key}_to"] = midnight + timedelta(days=end)
+                window = f"occurred_at >= :{key}_from AND occurred_at < :{key}_to"
+                selects.append(
+                    f"count(DISTINCT session_id) FILTER (WHERE {window}) AS {key}_visitors"
+                )
+                selects.append(
+                    f"count(*) FILTER (WHERE {window} AND event_type = 'job_view') AS {key}_views"
+                )
+
+        # The scan covers every window at once, so the planner prunes to the
+        # partitions those two months live in and reads them once.
+        params["scan_from"] = min(v for k, v in params.items() if k.endswith("_from"))
+        params["scan_to"] = max(v for k, v in params.items() if k.endswith("_to"))
+
+        row = (
+            (
+                await self.session.execute(
+                    text(
+                        f"""
+                    SELECT {", ".join(selects)}
+                      FROM analytics_events
+                     WHERE occurred_at >= :scan_from AND occurred_at < :scan_to
+                    """
+                    ),
+                    params,
+                )
+            )
+            .mappings()
+            .one()
+        )
+        return {key: int(value) for key, value in row.items()}
 
     async def event_count_since(self, since: datetime) -> int:
         """Raw event volume — used by the health check and by tests, not by

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router"
 import Navbar from "../components/Navbar"
 import { useJob } from "@/hooks/queries"
@@ -18,6 +18,7 @@ import {
   weight,
 } from "@/design-system"
 import { useIsSaved, useToggleSave } from "@/stores/useSavedJobsStore"
+import { trackApplyClick, trackJobSaved, trackJobView } from "@/lib/analytics"
 import NotFoundPage from "@/routes/NotFoundPage"
 import Icon, { IconBadge } from "@/components/Icon"
 import SiteFooter from "@/components/SiteFooter"
@@ -30,6 +31,16 @@ export default function JobDetailPage() {
   const job = data?.job
   const isSaved = useIsSaved(job?.id ?? "")
   const toggleSave = useToggleSave()
+
+  // The view is recorded once the listing has actually resolved, not on mount:
+  // a view of a job that 404s is not a view, and `job.id` is what the backend
+  // attributes the event to. Declared above the early returns because hooks
+  // cannot be conditional; `trackJobView` ignores an undefined id and
+  // suppresses the repeat that StrictMode's double-invoked effects would
+  // otherwise produce.
+  useEffect(() => {
+    trackJobView(job?.id)
+  }, [job?.id])
 
   if (isPending) return <JobDetailSkeleton />
 
@@ -61,7 +72,19 @@ export default function JobDetailPage() {
 
   const handleApply = () => {
     setApplied(true)
+    // Recorded before the tab opens. `trackApplyClick` beacons immediately
+    // rather than waiting for the flush timer — the visitor is leaving, and
+    // this is the number the entire dashboard is pointed at.
+    trackApplyClick(job.id)
     window.open(job.applyUrl, "_blank", "noopener")
+  }
+
+  // Only the save is an event. There is no "unsave" event type, and inventing
+  // one as a negative counter would let the stored count drift below the
+  // number of saves that actually happened.
+  const handleToggleSave = () => {
+    if (!isSaved) trackJobSaved(job.id)
+    toggleSave(job.id)
   }
 
   return (
@@ -319,7 +342,7 @@ export default function JobDetailPage() {
                 )}
               </button>
               <button
-                onClick={() => toggleSave(job.id)}
+                onClick={handleToggleSave}
                 style={{
                   padding: "14px 18px",
                   border: `1px solid ${

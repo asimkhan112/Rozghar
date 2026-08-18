@@ -7,7 +7,7 @@ can trigger by omitting a parameter.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
@@ -19,6 +19,8 @@ from app.schemas.analytics import (
     SearchAnalytics,
     SourcePerformance,
     TopJob,
+    TrafficSummary,
+    VisitorTrends,
 )
 from app.services.analytics_service import AnalyticsService, resolve_window
 from app.services.auth_service import Principal
@@ -58,6 +60,58 @@ async def overview(
         data = await service.overview(window)
         await cache.set("analytics:overview", data, key, ttl=TTL_ANALYTICS)
     return AnalyticsOverview.model_validate(data)
+
+
+@router.get("/traffic", response_model=TrafficSummary, summary="Audience and session shape")
+async def traffic(
+    service: ServiceDep,
+    cache: CacheDep,
+    _: ViewerDep,
+    from_date: FromDate = None,
+    to_date: ToDate = None,
+) -> TrafficSummary:
+    """Sessions, not listings.
+
+    The only dashboard read that touches the raw event partitions: a session
+    spans jobs and days, so the per-job daily rollup cannot describe one. Its
+    `unique_sessions` column is per-day by construction and summing it would
+    count a returning visitor once for every day they came back.
+
+    Cached on the same terms as `/overview`. The events behind it are live
+    rather than rebuilt on a schedule, so ten minutes is a real staleness
+    budget here rather than a free one — spent deliberately, because this is
+    the most expensive query on the dashboard and the tiles it feeds are read
+    far more often than they change.
+    """
+    window = resolve_window(from_date, to_date)
+    key = f"{window.since}:{window.until}"
+    data = await cache.get("analytics:traffic", key)
+    if data is None:
+        data = await service.traffic(window)
+        await cache.set("analytics:traffic", data, key, ttl=TTL_ANALYTICS)
+    return TrafficSummary.model_validate(data)
+
+
+@router.get("/visitors", response_model=VisitorTrends, summary="Visitors by period")
+async def visitor_trends(
+    service: ServiceDep,
+    cache: CacheDep,
+    _: ViewerDep,
+) -> VisitorTrends:
+    """Takes no window, unlike everything else here.
+
+    Its periods are fixed — today, seven days, thirty days — and each is
+    reported against the one before it. A caller-supplied range would make "vs
+    last week" mean whatever the caller decided, which is not a comparison.
+
+    Keyed on the date rather than on a window, so the first read after midnight
+    UTC misses rather than serving yesterday's card under today's label.
+    """
+    data = await cache.get("analytics:visitors", str(datetime.now(UTC).date()))
+    if data is None:
+        data = await service.visitor_trends()
+        await cache.set("analytics:visitors", data, str(data["as_of"]), ttl=TTL_ANALYTICS)
+    return VisitorTrends.model_validate(data)
 
 
 @router.get("/jobs", response_model=list[TopJob], summary="Per-listing performance")

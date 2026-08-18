@@ -61,6 +61,9 @@ export const queryKeys = {
       all: ['admin', 'analytics'] as const,
       overview: (window: AnalyticsWindow) =>
         [...queryKeys.admin.analytics.all, 'overview', window] as const,
+      visitors: () => [...queryKeys.admin.analytics.all, 'visitors'] as const,
+      traffic: (window: AnalyticsWindow) =>
+        [...queryKeys.admin.analytics.all, 'traffic', window] as const,
       sources: (window: AnalyticsWindow) =>
         [...queryKeys.admin.analytics.all, 'sources', window] as const,
       search: (window: AnalyticsWindow) =>

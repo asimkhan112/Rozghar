@@ -5,6 +5,7 @@ import {
   useAnalyticsOverview,
   useAuditFeed,
   useReports,
+  useVisitorTrends,
 } from '@/hooks/queries'
 import { describeError } from '@/lib/http'
 import { now } from '@/lib/api/adapters'
@@ -64,9 +65,34 @@ import { FField, FormSection, FRow, IS, StatusPill } from '@/components/ui/Admin
 import { useToast } from '@/stores/useToastStore'
 import Icon, { IconBadge } from '@/components/Icon'
 
+/**
+ * A period-over-period movement, as a sentence.
+ *
+ * `null` means the previous period had no visitors at all. That is not a
+ * hundred percent rise and it is not infinite growth — it is nothing to
+ * compare against, and the card says so rather than inventing a number.
+ */
+function movement(change: number | null | undefined, period: string) {
+  if (change === undefined) return { text: '—', tone: 'muted' as const }
+  if (change === null) return { text: `No ${period} to compare`, tone: 'muted' as const }
+  const sign = change >= 0 ? '+' : ''
+  return {
+    text: `${sign}${(change * 100).toFixed(1)}% vs ${period}`,
+    // A fall printed in green is worse than no colour at all.
+    tone: (change >= 0 ? 'up' : 'down') as 'up' | 'down',
+  }
+}
+
+const MOVEMENT_COLOR = {
+  up: color.success.base,
+  down: color.danger.base,
+  muted: color.text.muted,
+} as const
+
 export default function Dashboard() {
   const showToast = useToast()
   const overview = useAnalyticsOverview()
+  const visitors = useVisitorTrends()
   const audit = useAuditFeed(7)
   const openReports = useReports({ status: 'open', per_page: 1 })
   const allJobs = useAdminJobs({ per_page: 1 })
@@ -216,14 +242,34 @@ export default function Dashboard() {
         <div style={{ fontSize: size.sm, fontWeight: weight.bold, color: color.text.primary, marginBottom: 16 }}>Traffic Overview</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0, borderLeft: `1px solid ${color.border.base}` }}>
           {[
-            { label: 'Daily Visitors', value: '6,240', sub: 'Avg. 3.2 pages/session' },
-            { label: 'Weekly Visitors', value: '38,480', sub: '+8.4% vs last week' },
-            { label: 'Monthly Visitors', value: '162,000', sub: '+14.2% vs last month' },
-          ].map((s, i) => (
-            <div key={i} style={{ padding: '0 24px', borderRight: `1px solid ${color.border.base}` }}>
+            {
+              label: 'Daily Visitors',
+              value: visitors.data?.daily.visitors,
+              // Pages per visit rather than a day-over-day change: a single
+              // day swings hard on nothing, and the ratio is the number that
+              // actually says whether people are reading past the first page.
+              sub: visitors.data
+                ? {
+                    text: `Avg. ${visitors.data.daily.views_per_session.toFixed(1)} pages/session`,
+                    tone: 'muted' as const,
+                  }
+                : { text: '—', tone: 'muted' as const },
+            },
+            {
+              label: 'Weekly Visitors',
+              value: visitors.data?.weekly.visitors,
+              sub: movement(visitors.data?.weekly.change, 'last week'),
+            },
+            {
+              label: 'Monthly Visitors',
+              value: visitors.data?.monthly.visitors,
+              sub: movement(visitors.data?.monthly.change, 'last month'),
+            },
+          ].map(s => (
+            <div key={s.label} style={{ padding: '0 24px', borderRight: `1px solid ${color.border.base}` }}>
               <div style={{ fontSize: size['2xs'], color: color.text.muted, fontWeight: weight.semibold, textTransform: 'uppercase', letterSpacing: tracking.wide, marginBottom: 6 }}>{s.label}</div>
-              <div style={{ fontSize: size['5xl'], fontWeight: weight.extrabold, color: color.text.primary, letterSpacing: tracking.tighter, marginBottom: 2 }}>{s.value}</div>
-              <div style={{ fontSize: size['2xs'], color: color.success.base, fontWeight: weight.medium }}>{s.sub}</div>
+              <div style={{ fontSize: size['5xl'], fontWeight: weight.extrabold, color: color.text.primary, letterSpacing: tracking.tighter, marginBottom: 2 }}>{s.value === undefined ? '—' : s.value.toLocaleString()}</div>
+              <div style={{ fontSize: size['2xs'], color: MOVEMENT_COLOR[s.sub.tone], fontWeight: weight.medium }}>{s.sub.text}</div>
             </div>
           ))}
         </div>
