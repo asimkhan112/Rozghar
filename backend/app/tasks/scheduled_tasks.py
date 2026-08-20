@@ -43,7 +43,7 @@ from app.repositories.suggest_repo import SuggestRepository
 from app.services.analytics_service import AnalyticsService
 from app.services.metrics_service import MetricsService
 
-logger = logging.getLogger("rozgar.tasks")
+logger = logging.getLogger("plenilo.tasks")
 
 #: Namespace for the advisory locks, so a key collision with anything else
 #: using `pg_try_advisory_lock` on this database is not possible by accident.

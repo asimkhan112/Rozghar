@@ -25,8 +25,8 @@ from app.models.job import Job
 from app.models.rbac import Role
 from app.models.taxonomy import Category, Location, Source
 
-ADMIN_EMAIL = "m3-admin@rozgar.pk"
-EDITOR_EMAIL = "m3-editor@rozgar.pk"
+ADMIN_EMAIL = "m3-admin@plenilo.com"
+EDITOR_EMAIL = "m3-editor@plenilo.com"
 PASSWORD = "milestone-three-pass"
 LOGIN = "/api/v1/auth/login"
 JOBS = "/api/v1/jobs"

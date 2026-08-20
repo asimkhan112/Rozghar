@@ -18,16 +18,16 @@ export default function AboutPage() {
       <Navbar />
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '40px 24px 80px' }}>
         <div style={{ marginBottom: 32 }}>
-          <h1 style={{ fontSize: size['5xl'], fontWeight: weight.bold, color: color.text.primary, margin: '0 0 6px', letterSpacing: tracking.tight }}>About Rozgar.pk</h1>
+          <h1 style={{ fontSize: size['5xl'], fontWeight: weight.bold, color: color.text.primary, margin: '0 0 6px', letterSpacing: tracking.tight }}>About Plenilo.com</h1>
           <p style={{ fontSize: size.base, color: color.text.secondary, margin: 0 }}>
-            Curated jobs from top employers across Pakistan and beyond.
+            Curated jobs from top employers around the world.
           </p>
         </div>
 
         <div style={{ background: color.surface.base, border: `1px solid ${color.border.base}`, borderRadius: radius['5xl'], padding: '28px 32px', marginBottom: 20 }}>
           <p style={{ fontSize: size.md, color: color.text.strong, lineHeight: 1.7, margin: '0 0 14px' }}>
-            Job hunting in Pakistan means checking a dozen portals, most of them full of listings that
-            closed months ago. Rozgar.pk exists to make that a single, honest search.
+            Job hunting means checking a dozen portals, most of them full of listings that
+            closed months ago. Plenilo.com exists to make that a single, honest search.
           </p>
           <p style={{ fontSize: size.md, color: color.text.strong, lineHeight: 1.7, margin: 0 }}>
             We aggregate openings from company career pages, established job boards, university portals

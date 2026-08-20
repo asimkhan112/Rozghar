@@ -32,8 +32,8 @@ from app.models.rbac import Role
 from app.services import ai_service
 from app.services.ai_service import AIService, JobContent, JobFacts
 
-ADMIN_EMAIL = "ai-admin@rozgar.pk"
-ANALYST_EMAIL = "ai-analyst@rozgar.pk"
+ADMIN_EMAIL = "ai-admin@plenilo.com"
+ANALYST_EMAIL = "ai-analyst@plenilo.com"
 PASSWORD = "ai-drafting-password"
 LOGIN = "/api/v1/auth/login"
 REWRITE = "/api/v1/admin/ai/rewrite"

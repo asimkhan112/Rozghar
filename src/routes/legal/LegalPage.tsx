@@ -83,8 +83,9 @@ export function ReviewNotice() {
     <div style={{ marginTop: 28, padding: '14px 18px', background: color.warning.tintAlt, border: `1px solid ${color.warning.tintSoft}`, borderRadius: radius['2xl'] }}>
       <p style={{ fontSize: size.sm, color: color.warning.ochre, lineHeight: 1.6, margin: 0 }}>
         <strong>Not yet reviewed by a lawyer.</strong> This document describes how
-        Rozgar.pk actually works and is a drafting starting point, not legal advice.
-        Have it checked against Pakistan's data-protection and consumer legislation,
+        Plenilo.com actually works and is a drafting starting point, not legal advice.
+        Have it checked against the data-protection and consumer legislation of every
+          market you operate in,
         and replace every placeholder marked in [square brackets], before launch.
       </p>
     </div>

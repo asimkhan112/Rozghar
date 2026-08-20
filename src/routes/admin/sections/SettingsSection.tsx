@@ -13,8 +13,8 @@ export default function SettingsSection() {
     { k: 'seo', label: 'SEO Defaults' },
     { k: 'social', label: 'Social Links' },
   ]
-  const [site, setSite] = useState({ name: 'Rozgar.pk', tagline: "Pakistan's trusted job discovery platform", email: 'hello@rozgar.pk', phone: '+92 300 0000000' })
-  const [seo, setSeo] = useState({ title: 'Rozgar.pk – Find Jobs in Pakistan', desc: 'Browse thousands of verified job listings in Pakistan. Remote, hybrid and on-site opportunities.', keywords: 'jobs in pakistan, remote jobs, it jobs karachi lahore' })
+  const [site, setSite] = useState({ name: 'Plenilo.com', tagline: "Trusted job discovery, worldwide", email: 'hello@plenilo.com', phone: '+00 000 0000000' })
+  const [seo, setSeo] = useState({ title: 'Plenilo.com – Find Jobs Worldwide', desc: 'Browse thousands of verified job listings worldwide. Remote, hybrid and on-site opportunities.', keywords: 'jobs worldwide, remote jobs, global job search, tech jobs' })
 
   return (
     <div style={{ maxWidth: 680 }}>
@@ -68,10 +68,10 @@ export default function SettingsSection() {
         {tab === 'social' && (
           <>
             {[
-              { label: 'Facebook', placeholder: 'https://facebook.com/rozgarpk' },
-              { label: 'LinkedIn', placeholder: 'https://linkedin.com/company/rozgar' },
-              { label: 'Twitter / X', placeholder: 'https://x.com/rozgarpk' },
-              { label: 'Instagram', placeholder: 'https://instagram.com/rozgarpk' },
+              { label: 'Facebook', placeholder: 'https://facebook.com/plenilo' },
+              { label: 'LinkedIn', placeholder: 'https://linkedin.com/company/plenilo' },
+              { label: 'Twitter / X', placeholder: 'https://x.com/plenilo' },
+              { label: 'Instagram', placeholder: 'https://instagram.com/plenilo' },
             ].map(s => (
               <FField key={s.label} label={s.label}>
                 <input placeholder={s.placeholder} style={IS} />

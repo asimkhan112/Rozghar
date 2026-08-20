@@ -31,7 +31,7 @@ if (!API_ORIGIN) {
   // like a JSON parsing bug rather than a missing setting.
   throw new Error(
     'API_ORIGIN is not set. Add it to the Vercel project environment ' +
-      '(Settings → Environment Variables), e.g. https://rozgar-api.up.railway.app',
+      '(Settings → Environment Variables), e.g. https://plenilo-api.up.railway.app',
   )
 }
 

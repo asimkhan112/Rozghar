@@ -30,8 +30,8 @@ from app.models.report import Report
 from app.models.taxonomy import Category, Location, Source
 from app.services.report_service import ReportService
 
-ADMIN_EMAIL = "m5-admin@rozgar.pk"
-ANALYST_EMAIL = "m5-analyst@rozgar.pk"
+ADMIN_EMAIL = "m5-admin@plenilo.com"
+ANALYST_EMAIL = "m5-analyst@plenilo.com"
 PASSWORD = "milestone-five-pass"
 LOGIN = "/api/v1/auth/login"
 REPORTS = "/api/v1/reports"

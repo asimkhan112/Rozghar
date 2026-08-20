@@ -32,7 +32,7 @@ from app.models.suggest import PopularQuery, SkillTerm
 from app.models.taxonomy import Category, Location, Source
 from app.repositories.suggest_repo import SuggestRepository
 
-EMAIL = "sg-admin@rozgar.pk"
+EMAIL = "sg-admin@plenilo.com"
 PASSWORD = "suggest-tests-pass"
 ADMIN_JOBS = "/api/v1/admin/jobs"
 SUGGEST = "/api/v1/search/suggest"

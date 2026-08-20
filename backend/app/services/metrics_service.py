@@ -28,14 +28,14 @@ from prometheus_client import (
 registry = CollectorRegistry()
 
 http_requests = Counter(
-    "rozgar_http_requests_total",
+    "plenilo_http_requests_total",
     "HTTP requests by route template, method and status class.",
     labelnames=("method", "route", "status"),
     registry=registry,
 )
 
 http_duration = Histogram(
-    "rozgar_http_request_duration_seconds",
+    "plenilo_http_request_duration_seconds",
     "Request duration by route template.",
     labelnames=("method", "route"),
     # Tuned to this API rather than left at the default: the interesting
@@ -45,28 +45,28 @@ http_duration = Histogram(
 )
 
 search_queries = Counter(
-    "rozgar_search_queries_total",
+    "plenilo_search_queries_total",
     "Searches by the strategy tier that produced the results.",
     labelnames=("strategy",),
     registry=registry,
 )
 
 analytics_events = Counter(
-    "rozgar_analytics_events_total",
+    "plenilo_analytics_events_total",
     "Analytics events accepted and rejected at ingest.",
     labelnames=("outcome",),
     registry=registry,
 )
 
 task_runs = Counter(
-    "rozgar_scheduled_task_runs_total",
+    "plenilo_scheduled_task_runs_total",
     "Scheduled task executions by outcome.",
     labelnames=("task", "outcome"),
     registry=registry,
 )
 
 task_duration = Histogram(
-    "rozgar_scheduled_task_duration_seconds",
+    "plenilo_scheduled_task_duration_seconds",
     "Scheduled task duration.",
     labelnames=("task",),
     buckets=(0.1, 0.5, 1.0, 5.0, 15.0, 60.0, 300.0),
@@ -74,14 +74,14 @@ task_duration = Histogram(
 )
 
 rate_limit_rejections = Counter(
-    "rozgar_rate_limit_rejections_total",
+    "plenilo_rate_limit_rejections_total",
     "Requests rejected by a rate limiter, by bucket.",
     labelnames=("bucket",),
     registry=registry,
 )
 
 build_info = Gauge(
-    "rozgar_build_info",
+    "plenilo_build_info",
     "Build and environment metadata; the value is always 1.",
     labelnames=("version", "environment"),
     registry=registry,

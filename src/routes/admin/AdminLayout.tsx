@@ -3,7 +3,7 @@ import { color, fontFamily, linkReset, radius, shadow, size, weight } from '@/de
 import { NAV_ITEMS } from './navItems'
 import { useAdminSidebarOpen, useSetAdminSidebarOpen } from '@/stores/usePreferencesStore'
 import { useSignOut } from '@/stores/useAuthStore'
-import { useToastMessage } from '@/stores/useToastStore'
+import { useToastDismiss, useToastId, useToastMessage } from '@/stores/useToastStore'
 import Icon from '@/components/Icon'
 
 /** Section key -> URL segment. The dashboard is the index route. */
@@ -35,6 +35,8 @@ export default function AdminLayout() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const toast = useToastMessage()
+  const toastId = useToastId()
+  const dismissToast = useToastDismiss()
 
   const current = NAV_ITEMS.find(item => {
     const path = SECTION_PATH[item.key]
@@ -58,9 +60,9 @@ export default function AdminLayout() {
         {/* Logo */}
         <div style={{ height: 60, borderBottom: `1px solid ${color.border.base}`, display: 'flex', alignItems: 'center', padding: '0 16px', gap: 10, flexShrink: 0 }}>
           <div style={{ width: 32, height: 32, background: color.brand.base, borderRadius: radius.xl, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <span style={{ color: color.text.inverse, fontSize: size.sm, fontWeight: weight.bold }}>RZ</span>
+            <span style={{ color: color.text.inverse, fontSize: size.sm, fontWeight: weight.bold }}>PL</span>
           </div>
-          {sidebarOpen && <span style={{ fontSize: size.base, fontWeight: weight.semibold, color: color.text.primary, whiteSpace: 'nowrap' }}>Rozgar Admin</span>}
+          {sidebarOpen && <span style={{ fontSize: size.base, fontWeight: weight.semibold, color: color.text.primary, whiteSpace: 'nowrap' }}>Plenilo Admin</span>}
         </div>
 
         {/* Nav */}

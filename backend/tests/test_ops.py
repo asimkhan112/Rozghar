@@ -78,8 +78,8 @@ def test_metrics_exposes_prometheus_text(client):
     r = client.get("/metrics")
     assert r.status_code == 200
     assert "text/plain" in r.headers["content-type"]
-    assert "rozgar_http_requests_total" in r.text
-    assert "rozgar_build_info" in r.text
+    assert "plenilo_http_requests_total" in r.text
+    assert "plenilo_build_info" in r.text
 
 
 def test_metrics_label_by_route_template_not_url(client):
@@ -138,7 +138,7 @@ def test_an_upstream_request_id_is_preserved(client):
 
 def test_extra_fields_become_top_level_json_keys():
     record = logging.LogRecord(
-        name="rozgar.tasks",
+        name="plenilo.tasks",
         level=logging.INFO,
         pathname=__file__,
         lineno=1,
@@ -159,7 +159,7 @@ def test_extra_fields_become_top_level_json_keys():
 
 def test_secrets_are_redacted_from_logs():
     record = logging.LogRecord(
-        name="rozgar",
+        name="plenilo",
         level=logging.INFO,
         pathname=__file__,
         lineno=1,
@@ -169,12 +169,12 @@ def test_secrets_are_redacted_from_logs():
     )
     record.password = "hunter2"
     record.access_token = "eyJhbGciOi"
-    record.email = "someone@rozgar.pk"
+    record.email = "someone@plenilo.com"
 
     payload = json.loads(JsonFormatter().format(record))
     assert payload["password"] == "[redacted]"
     assert payload["access_token"] == "[redacted]"
-    assert payload["email"] == "someone@rozgar.pk"
+    assert payload["email"] == "someone@plenilo.com"
 
 
 # --- cache ----------------------------------------------------------------
@@ -290,7 +290,7 @@ def test_safe_extra_prevents_a_logrecord_collision():
     """
     from app.core.logging import safe_extra
 
-    logger = logging.getLogger("rozgar.test.collision")
+    logger = logging.getLogger("plenilo.test.collision")
     dangerous = {"created": 3, "name": "x", "partitions": ["a"]}
 
     with pytest.raises(KeyError):
@@ -372,13 +372,13 @@ def test_sitemap_uses_the_configured_site_url_not_the_request_host(client):
     internal hostname to Google.
     """
     original = settings.site_url
-    settings.site_url = "https://rozgar.example"
+    settings.site_url = "https://plenilo.example"
     try:
         body = client.get("/sitemap.xml").text
     finally:
         settings.site_url = original
 
-    assert "https://rozgar.example/jobs" in body
+    assert "https://plenilo.example/jobs" in body
     assert "testserver" not in body
 
 

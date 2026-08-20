@@ -26,9 +26,9 @@ from app.models.audit import AuditLog
 from app.models.job import Job
 from app.models.rbac import Role
 
-SUPER_EMAIL = "m8-super@rozgar.pk"
-OTHER_SUPER_EMAIL = "m8-super2@rozgar.pk"
-EDITOR_EMAIL = "m8-editor@rozgar.pk"
+SUPER_EMAIL = "m8-super@plenilo.com"
+OTHER_SUPER_EMAIL = "m8-super2@plenilo.com"
+EDITOR_EMAIL = "m8-editor@plenilo.com"
 PASSWORD = "milestone-eight-pass"
 #: Accounts created *by* the tests get their own password.
 CREATED_PASSWORD = "a-sufficiently-long-password"
@@ -105,7 +105,7 @@ def admin_id_for(client: TestClient, token: str, email: str) -> str:
 
 def new_admin(client: TestClient, token: str, world: dict, email: str | None = None) -> dict:
     body = {
-        "email": email or f"m8-{uuid4().hex[:8]}@rozgar.pk",
+        "email": email or f"m8-{uuid4().hex[:8]}@plenilo.com",
         "full_name": "Created Account",
         "password": CREATED_PASSWORD,
         "role_id": world["editor_role"],

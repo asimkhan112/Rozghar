@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Starts everything Rozghar needs for local development:
+# Starts everything Plenilo needs for local development:
 #
 #   Postgres + Redis (Docker) -> migrations -> FastAPI on :8000 -> Vite on :8443
 #

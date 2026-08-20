@@ -28,7 +28,7 @@ from app.core.rate_limit import (
 )
 from app.services.metrics_service import MetricsService
 
-logger = logging.getLogger("rozgar.request")
+logger = logging.getLogger("plenilo.request")
 
 #: Endpoints outside the metrics and rate-limit paths. Instrumenting the
 #: probes means the health check appears in the latency histogram, which
@@ -133,7 +133,7 @@ def register_middleware(app: FastAPI) -> None:
                 return JSONResponse(
                     status_code=429,
                     content={
-                        "type": "https://rozgar.pk/errors/rate_limited",
+                        "type": "https://plenilo.com/errors/rate_limited",
                         "title": "Too many requests",
                         "status": 429,
                         "detail": (

@@ -10,7 +10,7 @@
  * can use it directly, which keeps versioning and migration in one place.
  */
 
-const NAMESPACE = 'rozgar'
+const NAMESPACE = 'plenilo'
 
 /** Namespaced key for a store. Keeps all our entries greppable in devtools. */
 export function storageKey(name: string): string {

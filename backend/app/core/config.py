@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     )
 
     # --- application -----------------------------------------------------
-    app_name: str = "Rozgar API"
+    app_name: str = "Plenilo API"
     app_version: str = "0.9.0"
     environment: Literal["local", "test", "staging", "production"] = "local"
     debug: bool = False

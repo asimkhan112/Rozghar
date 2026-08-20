@@ -36,7 +36,7 @@ from app.tasks.scheduled_tasks import (
 )
 from app.tasks.scheduler import SCHEDULE, SchedulerHandle
 
-ADMIN_EMAIL = "m7-admin@rozgar.pk"
+ADMIN_EMAIL = "m7-admin@plenilo.com"
 PASSWORD = "milestone-seven-pass"
 
 

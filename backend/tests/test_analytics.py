@@ -28,8 +28,8 @@ from app.models.rbac import Role
 from app.models.taxonomy import Category, Location, Source
 from app.services.analytics_service import AnalyticsService, resolve_window
 
-ADMIN_EMAIL = "m6-admin@rozgar.pk"
-EDITOR_EMAIL = "m6-editor@rozgar.pk"
+ADMIN_EMAIL = "m6-admin@plenilo.com"
+EDITOR_EMAIL = "m6-editor@plenilo.com"
 PASSWORD = "milestone-six-pass"
 LOGIN = "/api/v1/auth/login"
 EVENTS = "/api/v1/analytics/events"

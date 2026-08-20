@@ -21,7 +21,7 @@ const COLUMNS: { heading: string; links: { label: string; to: string }[] }[] = [
     ],
   },
   {
-    heading: 'Rozgar.pk',
+    heading: 'Plenilo.com',
     links: [
       { label: 'About', to: '/about' },
       { label: 'Contact', to: '/contact' },
@@ -71,14 +71,14 @@ export default function SiteFooter() {
                   justifyContent: 'center',
                 }}
               >
-                RZ
+                PL
               </span>
               <span style={{ fontSize: size.md, fontWeight: weight.bold, color: color.text.primary }}>
-                Rozgar.pk
+                Plenilo.com
               </span>
             </div>
             <p style={{ fontSize: size.xs, color: color.text.secondary, lineHeight: 1.6, margin: 0, maxWidth: 240 }}>
-              Curated jobs from employers across Pakistan. Browse and apply without an account.
+              Curated jobs from employers around the world. Browse and apply without an account.
             </p>
           </div>
 
@@ -117,7 +117,7 @@ export default function SiteFooter() {
           }}
         >
           <span style={{ fontSize: size['2xs'], color: color.text.muted }}>
-            © {year} Rozgar.pk. All rights reserved.
+            © {year} Plenilo.com. All rights reserved.
           </span>
           <span style={{ fontSize: size['2xs'], color: color.text.muted }}>
             Listings link to the employer's own application page.

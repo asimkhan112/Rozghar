@@ -23,9 +23,9 @@ from app.main import app
 from app.models.admin import Admin, AdminSession
 from app.models.rbac import Role
 
-EMAIL = "test-admin@rozgar.pk"
+EMAIL = "test-admin@plenilo.com"
 PASSWORD = "test-password-1234"
-COOKIE = "rozgar_refresh"
+COOKIE = "plenilo_refresh"
 LOGIN = "/api/v1/auth/login"
 REFRESH = "/api/v1/auth/refresh"
 LOGOUT = "/api/v1/auth/logout"
@@ -131,7 +131,7 @@ def test_wrong_password_is_rejected(client):
 
 
 def test_unknown_account_is_indistinguishable_from_a_wrong_password(client):
-    unknown = client.post(LOGIN, json={"email": "nobody@rozgar.pk", "password": PASSWORD})
+    unknown = client.post(LOGIN, json={"email": "nobody@plenilo.com", "password": PASSWORD})
     wrong = login(client, "wrong-password-entirely")
     assert unknown.status_code == wrong.status_code == 401
     # Identical bodies: response content must not enumerate accounts.
@@ -239,7 +239,7 @@ def test_permission_dependency_allows_and_denies():
 
     editor = Principal(
         admin_id=__import__("uuid").uuid4(),
-        email="e@rozgar.pk",
+        email="e@plenilo.com",
         full_name="Editor",
         role_key="editor",
         permissions=frozenset({Permission.JOB_CREATE.value, Permission.JOB_EDIT.value}),

@@ -16,12 +16,12 @@ export default function PrivacyPolicyPage() {
   return (
     <LegalPage
       title="Privacy Policy"
-      intro="What Rozgar.pk records when you use the site, and what it does not."
+      intro="What Plenilo.com records when you use the site, and what it does not."
       updated="17 August 2026"
     >
       <Section heading="The short version">
         <P>
-          You do not need an account to use Rozgar.pk, and we do not ask for one. We
+          You do not need an account to use Plenilo.com, and we do not ask for one. We
           do not collect your name, phone number or CV. Jobs you save stay in your own
           browser. We record anonymous usage measurements so we can tell which listings
           are useful and which searches return nothing.
@@ -30,10 +30,10 @@ export default function PrivacyPolicyPage() {
 
       <Section heading="Who we are">
         <P>
-          Rozgar.pk is operated by [legal entity name], [registered address], Pakistan.
+          Plenilo.com is operated by [legal entity name], [registered address], [country of registration].
           For any question about this policy or your data, write to{' '}
           <Link to="/contact" style={link}>our contact page</Link> or email
-          [privacy@rozgar.pk].
+          [privacy@plenilo.com].
         </P>
       </Section>
 
@@ -130,7 +130,7 @@ export default function PrivacyPolicyPage() {
           Beyond that, nobody. We do not share, sell or rent usage data.
         </P>
         <P>
-          When you click <strong>Apply</strong>, you leave Rozgar.pk for the employer's
+          When you click <strong>Apply</strong>, you leave Plenilo.com for the employer's
           own website. What happens there is governed by that employer's privacy policy,
           not this one. We have no visibility into whether you applied or what you sent.
         </P>
@@ -153,7 +153,7 @@ export default function PrivacyPolicyPage() {
 
       <Section heading="Children">
         <P>
-          Rozgar.pk is aimed at people seeking employment and is not directed at children
+          Plenilo.com is aimed at people seeking employment and is not directed at children
           under 13. We do not knowingly collect information from them.
         </P>
       </Section>

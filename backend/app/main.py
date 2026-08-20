@@ -36,7 +36,7 @@ from app.services.permission_service import create_redis
 from app.tasks.scheduler import scheduler_handle
 
 configure_logging(json_logs=settings.json_logs, debug=settings.debug)
-logger = logging.getLogger("rozgar")
+logger = logging.getLogger("plenilo")
 
 
 @asynccontextmanager
@@ -96,7 +96,7 @@ def _problem(
 ) -> JSONResponse:
     """RFC 7807 problem response — one shape for every failure."""
     body = {
-        "type": f"https://rozgar.pk/errors/{code}",
+        "type": f"https://plenilo.com/errors/{code}",
         "title": title,
         "status": status,
         "detail": detail,
@@ -122,7 +122,7 @@ def create_app() -> FastAPI:
         headers = dict(exc.headers)
         # Signals to the client that a bearer token is expected, per RFC 6750.
         if exc.status == 401:
-            headers.setdefault("WWW-Authenticate", 'Bearer realm="rozgar"')
+            headers.setdefault("WWW-Authenticate", 'Bearer realm="plenilo"')
         return _problem(
             request,
             status=exc.status,

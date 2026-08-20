@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "rozgar-backend"
+name = "plenilo-backend"
 version = "0.1.0"
-description = "Rozgar.pk job board API"
+description = "Plenilo.com job board API"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",

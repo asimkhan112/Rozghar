@@ -4,7 +4,7 @@
 never will be. The first super admin has to come from somewhere, and a command
 run by whoever controls the server is the right somewhere.
 
-    python -m app.cli bootstrap-admin --email you@rozgar.pk --name "Your Name"
+    python -m app.cli bootstrap-admin --email you@plenilo.com --name "Your Name"
 
 `run-task` runs any scheduled task immediately. It is the same code path the
 scheduler uses, advisory lock included, so running one by hand while the
@@ -129,7 +129,7 @@ async def seed_taxonomy(purge: bool) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="app.cli", description="Rozgar backend operations")
+    parser = argparse.ArgumentParser(prog="app.cli", description="Plenilo backend operations")
     sub = parser.add_subparsers(dest="command", required=True)
 
     boot = sub.add_parser("bootstrap-admin", help="create the first super admin")

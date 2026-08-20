@@ -1,4 +1,4 @@
-# Running Rozghar on this Mac
+# Running Plenilo on this Mac
 
 Everything in this file has been run on this machine, in this order, and works.
 The short version:
@@ -14,7 +14,7 @@ Then open **http://localhost:8443**.
 
 ## 1. What this project is
 
-Rozghar is a Pakistani job board split into two halves that are served from a
+Plenilo is a Pakistani job board split into two halves that are served from a
 **single origin** — that matters, because the refresh cookie is `SameSite=Strict`
 and would not survive a cross-origin setup.
 
@@ -86,7 +86,7 @@ server together. `Ctrl-C` stops both.
 **Local admin account** (already created on this machine, local database only):
 
 ```
-admin@rozgar.pk / LocalDev12345!
+admin@plenilo.com / LocalDev12345!
 ```
 
 ---
@@ -131,7 +131,7 @@ docker compose ps          # wait until both say (healthy)
 ```
 
 Containers are named `rozgar-postgres` and `rozgar-redis`; data lives in the
-`backend_rozgar-pgdata` volume and survives restarts.
+`backend_plenilo-pgdata` volume and survives restarts.
 
 ### 4.3 Python environment
 
@@ -157,7 +157,7 @@ There is no public registration — the first super admin comes from the CLI:
 ```bash
 cd backend
 ./.venv/bin/python -m app.cli bootstrap-admin \
-  --email admin@rozgar.pk --name "Local Admin" --password 'LocalDev12345!'
+  --email admin@plenilo.com --name "Local Admin" --password 'LocalDev12345!'
 ```
 
 Use `--generate-password` instead to have a strong one printed once (it is not
@@ -272,5 +272,5 @@ Already done, so `./dev.sh` is all that's left:
 - `backend/.env` written with the compose ports
 - `rozgar-postgres` and `rozgar-redis` containers created and healthy
 - All 7 migrations applied; 20 categories and 38 locations seeded
-- Super admin `admin@rozgar.pk` created and verified against
+- Super admin `admin@plenilo.com` created and verified against
   `POST /api/v1/auth/login` through the Vite proxy

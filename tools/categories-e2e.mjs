@@ -38,7 +38,7 @@ try {
     const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set
     const ins = [...document.querySelectorAll('input')]
     const em = ins.find(i=>i.type==='email')||ins[0], pw = ins.find(i=>i.type==='password')||ins[1]
-    set.call(em,'owner@rozgar.pk'); em.dispatchEvent(new Event('input',{bubbles:true}))
+    set.call(em,'owner@plenilo.com'); em.dispatchEvent(new Event('input',{bubbles:true}))
     set.call(pw,'phase-two-local-password'); pw.dispatchEvent(new Event('input',{bubbles:true}))
     document.querySelector('form')?.requestSubmit() || [...document.querySelectorAll('button')].find(b=>/sign in/i.test(b.textContent))?.click()
     true`)

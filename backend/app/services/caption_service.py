@@ -178,7 +178,7 @@ def build_captions(data: CaptionInput) -> Captions:
     ]
     if data.salary:
         whatsapp_lines.append(f"💰 {data.salary}")
-    whatsapp_lines += ["", "Apply here:", url, "", "Found on Rozgar.pk"]
+    whatsapp_lines += ["", "Apply here:", url, "", "Found on Plenilo.com"]
     whatsapp = "\n".join(whatsapp_lines)
 
     # --- Facebook --------------------------------------------------------

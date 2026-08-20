@@ -343,7 +343,7 @@ export function makeAdapter({ jobs, categories }) {
           actions.map((action, i) => ({
             id: 100 - i,
             admin_id: "admin-1",
-            actor: { id: "admin-1", email: "owner@rozgar.pk", full_name: "Site Owner" },
+            actor: { id: "admin-1", email: "owner@plenilo.com", full_name: "Site Owner" },
             action,
             entity_type: action.split(".")[0],
             entity_id: jobs[i % jobs.length]?.id ?? null,
@@ -371,7 +371,7 @@ export function makeAdapter({ jobs, categories }) {
           status: 404,
           statusText: "Not Found",
           data: {
-            type: "https://rozgar.pk/errors/not_found",
+            type: "https://plenilo.com/errors/not_found",
             title: "Resource not found",
             status: 404,
           },

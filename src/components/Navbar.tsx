@@ -40,9 +40,9 @@ export default function Navbar() {
           style={{ ...linkReset, display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
         >
           <div style={{ width: 32, height: 32, background: color.brand.base, borderRadius: radius.xl, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: color.text.inverse, fontSize: size.base, fontWeight: weight.bold }}>RZ</span>
+            <span style={{ color: color.text.inverse, fontSize: size.base, fontWeight: weight.bold }}>PL</span>
           </div>
-          <span style={{ fontSize: size.lg, fontWeight: weight.semibold, color: color.text.primary, letterSpacing: tracking.tight }}>Rozgar.pk</span>
+          <span style={{ fontSize: size.lg, fontWeight: weight.semibold, color: color.text.primary, letterSpacing: tracking.tight }}>Plenilo.com</span>
         </Link>
 
         {/* Desktop Nav */}

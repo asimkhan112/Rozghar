@@ -25,7 +25,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from app.core.config import settings
 from app.tasks.scheduled_tasks import TASKS, run_task
 
-logger = logging.getLogger("rozgar.scheduler")
+logger = logging.getLogger("plenilo.scheduler")
 
 #: (task name, trigger, description). Times are in `settings.scheduler_timezone`
 #: — Asia/Karachi — so "runs overnight" means overnight for the people who

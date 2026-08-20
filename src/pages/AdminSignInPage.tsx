@@ -49,9 +49,9 @@ export default function AdminSignInPage() {
           style={{ ...linkReset, display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
         >
           <div style={{ width: 32, height: 32, background: color.brand.base, borderRadius: radius.xl, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: color.surface.base, fontSize: size.base, fontWeight: weight.bold }}>RZ</span>
+            <span style={{ color: color.surface.base, fontSize: size.base, fontWeight: weight.bold }}>PL</span>
           </div>
-          <span style={{ fontSize: size.lg, fontWeight: weight.semibold, color: color.text.primary, letterSpacing: tracking.tight }}>Rozgar.pk</span>
+          <span style={{ fontSize: size.lg, fontWeight: weight.semibold, color: color.text.primary, letterSpacing: tracking.tight }}>Plenilo.com</span>
         </Link>
         <Link to="/" style={{ ...linkReset, fontSize: size.sm, color: color.text.secondary, background: 'none', border: 'none', cursor: 'pointer' }}>
           ← Back to site
@@ -69,7 +69,7 @@ export default function AdminSignInPage() {
               </svg>
             </div>
             <h1 style={{ fontSize: size['4xl'], fontWeight: weight.bold, color: color.text.primary, margin: '0 0 6px', letterSpacing: tracking.tight }}>Admin Sign In</h1>
-            <p style={{ fontSize: size.base, color: color.text.secondary, margin: 0 }}>Operations dashboard for Rozgar.pk</p>
+            <p style={{ fontSize: size.base, color: color.text.secondary, margin: 0 }}>Operations dashboard for Plenilo.com</p>
           </div>
 
           {/* Form card */}
@@ -91,7 +91,7 @@ export default function AdminSignInPage() {
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="admin@rozgar.pk"
+                  placeholder="admin@plenilo.com"
                   autoComplete="email"
                   style={authInput(Boolean(error))}
                   onFocus={e => { e.currentTarget.style.borderColor = color.brand.base; e.currentTarget.style.boxShadow = focusRing(color.brand.alpha18) }}

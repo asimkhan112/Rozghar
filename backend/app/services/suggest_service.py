@@ -14,7 +14,7 @@ from app.schemas.suggest import AdminSuggestResponse, SuggestionItem, SuggestRes
 from app.services.cache_service import CacheService
 from app.services.search_service import normalise
 
-logger = logging.getLogger("rozgar.suggest")
+logger = logging.getLogger("plenilo.suggest")
 
 #: Below this, every listing matches and the dropdown is noise.
 MIN_QUERY_LENGTH = 2

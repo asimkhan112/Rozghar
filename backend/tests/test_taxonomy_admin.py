@@ -27,7 +27,7 @@ from app.models.audit import AuditLog
 from app.models.rbac import Role
 from app.models.taxonomy import Category
 
-EMAIL = "tx-admin@rozgar.pk"
+EMAIL = "tx-admin@plenilo.com"
 PASSWORD = "taxonomy-tests-pass"
 CATEGORIES = "/api/v1/admin/categories"
 LOCATIONS = "/api/v1/admin/locations"

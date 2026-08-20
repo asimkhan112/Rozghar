@@ -32,7 +32,7 @@ from app.models.taxonomy import Category, Location, Source
 from app.services.caption_service import CaptionInput, build_captions, share_urls
 from app.services.social_card_service import SPECS, JobCardData, render_card
 
-ADMIN_EMAIL = "social-admin@rozgar.pk"
+ADMIN_EMAIL = "social-admin@plenilo.com"
 PASSWORD = "social-asset-password"
 LOGIN = "/api/v1/auth/login"
 ADMIN_JOBS = "/api/v1/admin/jobs"
@@ -292,7 +292,7 @@ def test_hashtag_count_is_capped():
 
 def test_share_urls_encode_correctly():
     captions = build_captions(caption_input())
-    urls = share_urls("https://rozgar.pk/jobs/x", captions)
+    urls = share_urls("https://plenilo.com/jobs/x", captions)
     assert urls["linkedin"].startswith("https://www.linkedin.com/sharing/share-offsite/?url=")
     assert "%3A%2F%2F" in urls["linkedin"], "the URL must be percent-encoded"
     assert urls["whatsapp"].startswith("https://wa.me/?text=")

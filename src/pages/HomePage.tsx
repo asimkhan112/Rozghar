@@ -159,7 +159,7 @@ export default function HomePage() {
             Find your next opportunity
             <br />
             <span style={{ color: color.brand.base }}>
-              in Pakistan & beyond
+              anywhere in the world
             </span>
           </h1>
           <p
@@ -646,7 +646,7 @@ export default function HomePage() {
                   color: color.text.secondary,
                 }}
               >
-                Work from anywhere in Pakistan. USD & PKR salaries.
+                Work from anywhere. Roles from employers worldwide.
               </p>
             </div>
           </div>
@@ -921,7 +921,7 @@ export default function HomePage() {
                     fontWeight: weight.bold,
                   }}
                 >
-                  RZ
+                  PL
                 </span>
               </div>
               <span
@@ -931,13 +931,13 @@ export default function HomePage() {
                   color: color.text.primary,
                 }}
               >
-                Rozgar.pk
+                Plenilo.com
               </span>
             </div>
             <p
               style={{ margin: 0, fontSize: size.xs, color: color.text.muted }}
             >
-              Pakistan's trusted job discovery platform
+              Trusted job discovery, worldwide
             </p>
           </div>
           <div style={{ display: "flex", gap: 24 }}>

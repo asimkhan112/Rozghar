@@ -22,7 +22,7 @@ from app.services.auth_service import Principal, TokenPair
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-REFRESH_COOKIE_NAME = "rozgar_refresh"
+REFRESH_COOKIE_NAME = "plenilo_refresh"
 #: Scoped to the refresh and logout paths so the token is not attached to every
 #: request — it should only ever be sent where it is actually needed.
 REFRESH_COOKIE_PATH = "/api/v1/auth"
@@ -127,19 +127,19 @@ async def refresh(
     request: Request,
     response: Response,
     auth: AuthServiceDep,
-    rozgar_refresh: Annotated[str | None, Cookie()] = None,
+    plenilo_refresh: Annotated[str | None, Cookie()] = None,
 ) -> TokenResponse:
     """Takes no request body on purpose.
 
     The cookie is `SameSite=Strict` and nothing else is required, so a
     cross-site form post cannot drive this endpoint.
     """
-    if not rozgar_refresh:
+    if not plenilo_refresh:
         raise InvalidRefreshToken("No refresh token was supplied.")
 
     try:
         _, pair = await auth.refresh(
-            rozgar_refresh,
+            plenilo_refresh,
             user_agent=request.headers.get("user-agent"),
             ip=client_ip(request),
         )
@@ -168,14 +168,14 @@ async def refresh(
 async def logout(
     response: Response,
     auth: AuthServiceDep,
-    rozgar_refresh: Annotated[str | None, Cookie()] = None,
+    plenilo_refresh: Annotated[str | None, Cookie()] = None,
 ) -> Response:
     """Idempotent — logging out twice, or with no cookie, is still a 204.
 
     Requires no access token: a user whose access token has expired must still
     be able to end their session.
     """
-    await auth.logout(rozgar_refresh)
+    await auth.logout(plenilo_refresh)
     await auth.session.commit()
     _clear_refresh_cookie(response)
     response.status_code = status.HTTP_204_NO_CONTENT

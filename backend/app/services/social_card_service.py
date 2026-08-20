@@ -429,8 +429,10 @@ def render_card(data: JobCardData, variant: SocialVariant = SocialVariant.SQUARE
     # --- header ----------------------------------------------------------
     y = 12 + pad - 20
     logo_font = _font("NotoSans-Bold.ttf", 38 if square else 30)
-    draw.text((pad, y), "Rozgar", font=logo_font, fill=INK)
-    draw.text((pad + _measure(draw, "Rozgar", logo_font)[0], y), ".pk", font=logo_font, fill=BRAND)
+    draw.text((pad, y), "Plenilo", font=logo_font, fill=INK)
+    draw.text(
+        (pad + _measure(draw, "Plenilo", logo_font)[0], y), ".com", font=logo_font, fill=BRAND
+    )
 
     tag_font = _font("NotoSans-Regular.ttf", 20 if square else 17)
     tag = "WE ARE HIRING"

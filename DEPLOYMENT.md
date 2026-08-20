@@ -62,7 +62,7 @@ failed deploy.
 Then create the first admin from Railway's shell:
 
 ```bash
-python -m app.cli bootstrap-admin --email you@rozgar.pk --name "Your Name" --generate-password
+python -m app.cli bootstrap-admin --email you@plenilo.com --name "Your Name" --generate-password
 ```
 
 ## 3. Vercel — frontend
@@ -73,7 +73,7 @@ One environment variable:
 
 | Variable | Value |
 |---|---|
-| `API_ORIGIN` | the Railway public URL, e.g. `https://rozgar-api.up.railway.app`, no trailing slash |
+| `API_ORIGIN` | the Railway public URL, e.g. `https://plenilo-api.up.railway.app`, no trailing slash |
 
 `vercel.ts` reads it at build time. If it is missing the build fails on purpose:
 without the rewrites every API call would return `index.html` with a `200`,
@@ -83,7 +83,7 @@ which looks like a JSON parsing bug rather than a missing setting.
 
 ```bash
 curl https://your-app.vercel.app/api/v1/jobs?per_page=1   # through the proxy
-curl https://rozgar-api.up.railway.app/ready              # postgres + redis + scheduler
+curl https://plenilo-api.up.railway.app/ready              # postgres + redis + scheduler
 ```
 
 Then sign in at `https://your-app.vercel.app/admin/login`. If sign-in works, the

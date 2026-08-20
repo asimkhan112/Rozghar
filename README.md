@@ -1,4 +1,4 @@
-# Rozgar.pk
+# Plenilo.com
 
 A job board for Pakistan. FastAPI + PostgreSQL on the back, React + Vite on the
 front, served same-origin behind one reverse proxy.
@@ -35,7 +35,7 @@ pnpm dev                           # vite on :8443
 ```
 
 **Admin Account**
-email:asim@rozgar.pk
+email:asim@plenilo.com
 password:blrdqYGl0$LbNW!poudC
 
 Open <http://localhost:8443>. Vite proxies `/api`, `/sitemap.xml` and
@@ -49,7 +49,7 @@ at all.
 ```bash
 cd backend
 .venv/bin/python -m app.cli bootstrap-admin \
-  --email you@rozgar.pk --name "Your Name" --generate-password
+  --email you@plenilo.com --name "Your Name" --generate-password
 ```
 
 Sign in at <http://localhost:8443/admin/login>.
