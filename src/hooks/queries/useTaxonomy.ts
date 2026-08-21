@@ -7,7 +7,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query"
-import { fetchCategories, fetchLocations } from "@/lib/api"
+import { fetchCategories, fetchCountries, fetchLocations } from "@/lib/api"
 import { STALE_TAXONOMY } from "@/app/queryClient"
 import { queryKeys } from "./keys"
 
@@ -24,5 +24,14 @@ export function useLocations() {
     queryKey: queryKeys.taxonomy.locations(),
     queryFn: ({ signal }) => fetchLocations(signal),
     staleTime: STALE_TAXONOMY,
+  })
+}
+
+/** The country list is static reference data — fetched once and kept. */
+export function useCountries() {
+  return useQuery({
+    queryKey: queryKeys.taxonomy.countries(),
+    queryFn: ({ signal }) => fetchCountries(signal),
+    staleTime: Infinity,
   })
 }

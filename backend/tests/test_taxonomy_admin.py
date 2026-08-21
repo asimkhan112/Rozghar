@@ -16,7 +16,7 @@ import asyncio
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, select
 
 from app.core.permissions import SystemRole
 from app.core.security import hash_password
@@ -25,7 +25,7 @@ from app.main import app
 from app.models.admin import Admin, AdminSession
 from app.models.audit import AuditLog
 from app.models.rbac import Role
-from app.models.taxonomy import Category
+from app.models.taxonomy import Category, Location
 
 EMAIL = "tx-admin@plenilo.com"
 PASSWORD = "taxonomy-tests-pass"
@@ -46,6 +46,7 @@ async def _seed() -> None:
             # flush collides with the row being removed.
             await s.commit()
         await s.execute(delete(Category).where(Category.slug.like("tx-%")))
+        await s.execute(delete(Location).where(Location.slug.like("tx-%")))
         role = (
             await s.execute(select(Role).where(Role.key == SystemRole.ADMIN.value))
         ).scalar_one()
@@ -159,3 +160,79 @@ def test_archiving_a_category_with_listings_is_refused(client):
     r = client.patch(f"{CATEGORIES}/{busy['id']}", json={"is_active": False})
     assert r.status_code == 409
     assert "listing" in r.json()["detail"].lower()
+
+
+# --- locations are worldwide ---------------------------------------------
+
+
+def test_the_country_list_is_served_and_excludes_pseudo_regions(client):
+    """The picker is built from this, so it has to be the whole world and
+    nothing that is not a country."""
+    r = client.get("/api/v1/countries")
+    assert r.status_code == 200, r.text
+    rows = r.json()
+    codes = {row["code"] for row in rows}
+    assert {"PK", "DE", "JP", "BR", "NG"} <= codes
+    # CLDR ships these alongside real countries; none is a place a job can be in.
+    assert not ({"EU", "ZZ", "QO", "XK"} & codes)
+    assert [row["name"] for row in rows] == sorted(row["name"] for row in rows)
+
+
+def test_a_location_outside_pakistan_gets_a_readable_label(client):
+    """The regression this whole change exists for.
+
+    The old five-country lookup fell through to the raw code, so anywhere but
+    PK/AE/SA/GB/US rendered as "Berlin, DE" — beside "Lahore, Pakistan".
+    """
+    n = next(_counter)
+    r = client.post(LOCATIONS, json={"city": f"TX Berlin {n}", "country": "DE"})
+    assert r.status_code == 201, r.text
+    assert r.json()["display_name"] == f"TX Berlin {n}, Germany"
+
+
+def test_country_is_required_rather_than_defaulting_to_pakistan(client):
+    """A default is how every location in the catalogue ended up in one
+    country. Omitting it is now a validation error, not a silent guess."""
+    r = client.post(LOCATIONS, json={"city": "TX Nowhere"})
+    assert r.status_code == 422, r.text
+
+
+def test_an_unknown_country_code_is_refused(client):
+    r = client.post(LOCATIONS, json={"city": "TX Someplace", "country": "ZX"})
+    assert r.status_code == 422, r.text
+
+
+def test_a_lowercase_country_code_is_accepted_and_normalised(client):
+    """Case is a formatting detail, not a mistake worth rejecting."""
+    n = next(_counter)
+    r = client.post(LOCATIONS, json={"city": f"TX Osaka {n}", "country": "jp"})
+    assert r.status_code == 201, r.text
+    assert r.json()["country"] == "JP"
+    assert r.json()["display_name"] == f"TX Osaka {n}, Japan"
+
+
+def test_correcting_the_country_recomposes_the_label(client):
+    """A label composed at creation goes stale the moment its parts move, and
+    the wrong country is exactly the thing an editor comes back to fix."""
+    n = next(_counter)
+    made = client.post(LOCATIONS, json={"city": f"TX Valencia {n}", "country": "VE"})
+    assert made.status_code == 201, made.text
+    assert made.json()["display_name"] == f"TX Valencia {n}, Venezuela"
+
+    fixed = client.patch(f"{LOCATIONS}/{made.json()['id']}", json={"country": "ES"})
+    assert fixed.status_code == 200, fixed.text
+    assert fixed.json()["display_name"] == f"TX Valencia {n}, Spain"
+
+
+def test_an_explicit_label_survives_a_country_correction(client):
+    """A hand-written label is a deliberate override and must not be
+    recomposed out from under whoever wrote it."""
+    n = next(_counter)
+    made = client.post(
+        LOCATIONS,
+        json={"city": f"TX Zurich {n}", "country": "CH", "display_name": f"TX Zurich {n} (HQ)"},
+    )
+    assert made.status_code == 201, made.text
+    fixed = client.patch(f"{LOCATIONS}/{made.json()['id']}", json={"country": "AT"})
+    assert fixed.status_code == 200, fixed.text
+    assert fixed.json()["display_name"] == f"TX Zurich {n} (HQ)"

@@ -1,6 +1,6 @@
 export { queryKeys } from "./keys"
 export { useJob, useJobs, useJobsByIds } from "./useJobs"
-export { useCategories, useLocations } from "./useTaxonomy"
+export { useCategories, useCountries, useLocations } from "./useTaxonomy"
 export {
   useAdminJob,
   useAdminJobs,

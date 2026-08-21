@@ -34,6 +34,13 @@ export interface CategoryDto {
   job_count: number
 }
 
+/** One selectable country, served by the API so the browser never has to
+ *  decide which codes are valid. */
+export interface CountryDto {
+  code: string
+  name: string
+}
+
 export interface LocationDto {
   id: string
   slug: string

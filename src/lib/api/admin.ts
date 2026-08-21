@@ -319,7 +319,8 @@ export function updateCategory(id: string, changes: Record<string, unknown>) {
 export interface NewLocation {
   city?: string
   region?: string
-  country?: string
+  /** Required: the API has no default, deliberately. */
+  country: string
   is_remote?: boolean
   display_name?: string
 }

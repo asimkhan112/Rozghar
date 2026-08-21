@@ -3,12 +3,35 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import Field, HttpUrl, model_validator
+from pydantic import AfterValidator, Field, HttpUrl, StringConstraints, model_validator
 
+from app.core.countries import COUNTRY_CODES
 from app.core.enums import SourceType
 from app.schemas.common import ORMModel, Slug, StrictModel
+
+
+def _known_country(code: str) -> str:
+    """Reject codes that are not ISO 3166-1 alpha-2.
+
+    Without this any two characters are storable, and the damage surfaces far
+    from the typo: the label, the sitemap and every share card for that market
+    render "Berlin, DA" until somebody notices.
+    """
+    if code not in COUNTRY_CODES:
+        raise ValueError(f"{code} is not an ISO 3166-1 alpha-2 country code")
+    return code
+
+
+#: Upper-cased before validation, so a caller sending "de" is corrected rather
+#: than rejected — the case is a formatting detail, not a mistake.
+CountryCode = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, to_upper=True, min_length=2, max_length=2),
+    AfterValidator(_known_country),
+]
 
 # --- categories ----------------------------------------------------------
 
@@ -51,7 +74,10 @@ class CategoryDetail(CategoryRead):
 class LocationCreate(StrictModel):
     city: str | None = Field(default=None, min_length=2, max_length=80)
     region: str | None = Field(default=None, max_length=80)
-    country: str = Field(default="PK", min_length=2, max_length=2)
+    #: Required, with no default. A default meant every location created
+    #: through the console silently became Pakistani, which is precisely the
+    #: bug this field exists to prevent.
+    country: CountryCode
     is_remote: bool = False
     slug: Slug | None = None
     display_name: str | None = Field(default=None, max_length=160)
@@ -68,6 +94,9 @@ class LocationCreate(StrictModel):
 class LocationUpdate(StrictModel):
     city: str | None = Field(default=None, min_length=2, max_length=80)
     region: str | None = Field(default=None, max_length=80)
+    #: Editable, so a location filed under the wrong country can be corrected
+    #: rather than archived and recreated.
+    country: CountryCode | None = None
     display_name: str | None = Field(default=None, max_length=160)
     is_active: bool | None = None
 
@@ -87,6 +116,13 @@ class LocationDetail(LocationRead):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+class CountryRead(ORMModel):
+    """One ISO 3166-1 alpha-2 country, for the location picker."""
+
+    code: str
+    name: str
 
 
 # --- sources -------------------------------------------------------------

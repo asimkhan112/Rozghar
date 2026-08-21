@@ -12,6 +12,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.countries import country_name
 from app.core.exceptions import Conflict, NotFound
 from app.core.slug import slugify
 from app.models.company import Company
@@ -132,6 +133,18 @@ class CategoryService(_BaseTaxonomyService):
         return category
 
 
+def _label_parts(location: Location) -> dict[str, Any]:
+    """The fields a location's label is composed from, as `_display_name` wants
+    them. `display_name` is deliberately absent: including it would make the
+    composer echo the stored value back instead of deriving a fresh one."""
+    return {
+        "city": location.city,
+        "region": location.region,
+        "country": location.country,
+        "is_remote": location.is_remote,
+    }
+
+
 class LocationService(_BaseTaxonomyService):
     entity_name = "location"
 
@@ -151,23 +164,28 @@ class LocationService(_BaseTaxonomyService):
     async def list_public(self, *, country: str | None = None) -> list[Location]:
         return await self.repo.list_active(country=country)
 
-    #: Country codes spelled out in labels. A dropdown that mixes
-    #: "Lahore, Pakistan" with "Chiniot, PK" looks broken, and the two-letter
-    #: code is a storage detail no reader needs to see.
-    COUNTRY_NAMES = {"PK": "Pakistan", "AE": "UAE", "SA": "Saudi Arabia", "GB": "UK", "US": "USA"}
+    #: Fields the composed label is built from. Changing any of them without
+    #: recomposing leaves the label describing where the location used to be.
+    _LABEL_PARTS = frozenset({"city", "region", "country", "is_remote"})
 
     @classmethod
     def _display_name(cls, data: dict[str, Any]) -> str:
-        """Compose the label the UI shows, so it is consistent everywhere."""
+        """Compose the label the UI shows, so it is consistent everywhere.
+
+        Names come from the full ISO 3166-1 table rather than a handful of
+        hardcoded entries. The five-country map this replaced fell through to
+        the raw code for everywhere else, so a listing in Germany read
+        "Berlin, DE" beside "Lahore, Pakistan" — the exact inconsistency the
+        old comment warned about, for all but five markets.
+        """
         if data.get("display_name"):
             return str(data["display_name"])
         if data.get("is_remote"):
-            scope = data.get("region") or data.get("country") or "Worldwide"
-            return f"Remote – {cls.COUNTRY_NAMES.get(scope, scope)}"
+            region = data.get("region")
+            scope = region or country_name(data.get("country")) or "Worldwide"
+            return f"Remote – {scope}"
         city = data.get("city") or ""
-        code = data.get("country") or ""
-        country = cls.COUNTRY_NAMES.get(code, code)
-        return f"{city}, {country}".strip(", ")
+        return f"{city}, {country_name(data.get('country'))}".strip(", ")
 
     async def create(
         self, data: dict[str, Any], *, principal: Principal, ip_hash: str | None = None
@@ -195,8 +213,22 @@ class LocationService(_BaseTaxonomyService):
             raise Conflict(f"This location still has {location.job_count} published listing(s).")
 
         before = _snapshot(location)
+
+        # Was the stored label composed by us, or written by hand? The model
+        # has no flag for it — but a generated label is reproducible, so
+        # recomposing the *current* parts and comparing answers the question
+        # without one. A hand-written label differs, and must survive an edit
+        # to the fields it deliberately ignores.
+        was_generated = location.display_name == self._display_name(_label_parts(location))
+
         for field, value in changes.items():
             setattr(location, field, value)
+
+        # Recompose when the parts it is built from move. Skipped for a label
+        # the caller is setting now, and for one somebody wrote by hand.
+        if was_generated and "display_name" not in changes and self._LABEL_PARTS & changes.keys():
+            location.display_name = self._display_name(_label_parts(location))
+
         await self.session.flush()
         await self._audit_update(principal, location, before, ip_hash)
         return location

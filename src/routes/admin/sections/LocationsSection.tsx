@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { color, radius, size, weight } from '@/design-system'
-import { useAdminLocations, useCreateLocation, useUpdateLocation } from '@/hooks/queries'
+import { useAdminLocations, useCountries, useCreateLocation, useUpdateLocation } from '@/hooks/queries'
 import { describeError } from '@/lib/http'
 import { ErrorPanel } from '@/components/QueryState'
 import { FField, IS } from '@/components/ui/AdminForm'
@@ -12,13 +12,21 @@ export default function LocationsSection() {
   const { data, isPending, isError, error, refetch } = useAdminLocations()
   const createLocation = useCreateLocation()
   const updateLocation = useUpdateLocation()
+  const countries = useCountries()
 
   const [adding, setAdding] = useState(false)
   const [city, setCity] = useState('')
   const [region, setRegion] = useState('')
+  // No default. A pre-selected country is how every location in the catalogue
+  // ended up in one place — an editor in a hurry accepts whatever is already
+  // there. An empty value forces the choice to be made.
+  const [country, setCountry] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
 
   const locations = data ?? []
+
+  /** Code -> readable name, for the cards. Rows store `PK`; nobody reads that. */
+  const countryName = new Map((countries.data ?? []).map(c => [c.code, c.name]))
 
   async function run(key: string, action: () => Promise<unknown>, done: string) {
     setBusy(key)
@@ -34,17 +42,24 @@ export default function LocationsSection() {
     }
   }
 
+  const canSave = Boolean(city.trim() && country)
+
   const save = async () => {
     const name = city.trim()
-    if (!name) return
+    if (!canSave) return
     const ok = await run(
       'create',
-      () => createLocation.mutateAsync({ city: name, region: region.trim() || undefined }),
-      `${name} added`,
+      () => createLocation.mutateAsync({
+        city: name,
+        region: region.trim() || undefined,
+        country,
+      }),
+      `${name}, ${countryName.get(country) ?? country} added`,
     )
     if (ok) {
       setCity('')
       setRegion('')
+      setCountry('')
       setAdding(false)
     }
   }
@@ -62,12 +77,27 @@ export default function LocationsSection() {
       {adding && (
         <div style={{ background: color.surface.base, border: `1px solid ${color.brand.alpha40}`, borderRadius: radius['3xl'], padding: '20px 24px', display: 'flex', gap: 12, alignItems: 'flex-end' }}>
           <FField label="City" style={{ flex: 1 }}>
-            <input value={city} onChange={e => setCity(e.target.value)} onKeyDown={e => e.key === 'Enter' && void save()} autoFocus placeholder="e.g. Abbottabad" style={IS} />
+            <input value={city} onChange={e => setCity(e.target.value)} onKeyDown={e => e.key === 'Enter' && void save()} autoFocus placeholder="e.g. Berlin" style={IS} />
           </FField>
-          <FField label="Province / Region" style={{ flex: 1 }}>
-            <input value={region} onChange={e => setRegion(e.target.value)} onKeyDown={e => e.key === 'Enter' && void save()} placeholder="e.g. Khyber Pakhtunkhwa" style={IS} />
+          <FField label="State / Province / Region" style={{ flex: 1 }}>
+            <input value={region} onChange={e => setRegion(e.target.value)} onKeyDown={e => e.key === 'Enter' && void save()} placeholder="e.g. Bavaria (optional)" style={IS} />
           </FField>
-          <button onClick={() => void save()} disabled={!city.trim() || busy === 'create'} style={{ padding: '10px 20px', background: color.brand.base, border: 'none', borderRadius: radius.xl, color: color.surface.base, fontSize: size.sm, fontWeight: weight.medium, cursor: city.trim() ? 'pointer' : 'not-allowed', opacity: city.trim() ? 1 : 0.5, flexShrink: 0 }}>
+          <FField label="Country" style={{ flex: 1 }}>
+            <select
+              value={country}
+              onChange={e => setCountry(e.target.value)}
+              disabled={countries.isPending}
+              style={IS}
+            >
+              <option value="">
+                {countries.isPending ? 'Loading…' : countries.isError ? 'Unavailable' : 'Select a country…'}
+              </option>
+              {(countries.data ?? []).map(c => (
+                <option key={c.code} value={c.code}>{c.name}</option>
+              ))}
+            </select>
+          </FField>
+          <button onClick={() => void save()} disabled={!canSave || busy === 'create'} style={{ padding: '10px 20px', background: color.brand.base, border: 'none', borderRadius: radius.xl, color: color.surface.base, fontSize: size.sm, fontWeight: weight.medium, cursor: canSave ? 'pointer' : 'not-allowed', opacity: canSave ? 1 : 0.5, flexShrink: 0 }}>
             {busy === 'create' ? 'Saving…' : 'Save'}
           </button>
           <button onClick={() => setAdding(false)} style={{ padding: '10px 16px', border: `1px solid ${color.border.base}`, borderRadius: radius.xl, background: color.surface.base, color: color.text.secondary, fontSize: size.sm, cursor: 'pointer', flexShrink: 0 }}>Cancel</button>
@@ -82,7 +112,9 @@ export default function LocationsSection() {
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: size.base, fontWeight: weight.semibold, color: color.text.primary, marginBottom: 2 }}>{l.city ?? l.display_name}</div>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: size['2xs'], color: color.text.muted }}>{l.region ?? '—'}</span>
+                <span style={{ fontSize: size['2xs'], color: color.text.muted }}>
+                  {[l.region, countryName.get(l.country) ?? l.country].filter(Boolean).join(' · ') || '—'}
+                </span>
                 <span style={{ width: 3, height: 3, borderRadius: radius.full, background: color.text.disabled }} />
                 <span style={{ fontSize: size['2xs'], padding: '1px 6px', borderRadius: radius.sm, background: l.is_remote ? color.brand.tint : color.surface.subtle, color: l.is_remote ? color.brand.base : color.text.secondary, fontWeight: weight.medium }}>{l.is_remote ? 'Remote' : 'City'}</span>
                 {!l.is_active && (

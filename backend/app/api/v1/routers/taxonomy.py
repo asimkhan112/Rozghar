@@ -13,6 +13,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.api.v1.deps import DbSession, client_ip, require
+from app.core.countries import COUNTRY_NAMES
 from app.core.permissions import Permission
 from app.core.security import hash_ip
 from app.schemas.common import Paginated
@@ -22,6 +23,7 @@ from app.schemas.taxonomy import (
     CategoryDetail,
     CategoryRead,
     CategoryUpdate,
+    CountryRead,
     LocationCreate,
     LocationDetail,
     LocationRead,
@@ -87,6 +89,25 @@ async def list_locations(
     country: Annotated[str | None, Query(min_length=2, max_length=2)] = None,
 ) -> list[LocationRead]:
     return [LocationRead.model_validate(loc) for loc in await service.list_public(country=country)]
+
+
+@public.get("/countries", response_model=list[CountryRead], summary="Selectable countries")
+async def list_countries() -> list[CountryRead]:
+    """The country list the location picker is built from.
+
+    Served rather than duplicated in the browser so there is exactly one
+    authority on which codes are acceptable. Generating the list on both sides
+    would mean two filter rules in two languages, and the day they disagree an
+    editor picks a country the API then rejects.
+
+    Static and identical for every caller, so it is a plain sorted list with no
+    parameters — the response is trivially cacheable by anything in front of
+    it.
+    """
+    return [
+        CountryRead(code=code, name=name)
+        for code, name in sorted(COUNTRY_NAMES.items(), key=lambda kv: kv[1])
+    ]
 
 
 @public.get("/sources", response_model=list[SourceRead], summary="Active sources")
