@@ -171,7 +171,7 @@ export default function HomePage() {
               lineHeight: 1.6,
             }}
           >
-            Curated jobs from top employers. Apply directly — no account needed.
+            Curated jobs from top employers. Apply directly - no account needed.
           </p>
 
           {/* Search box. The relative wrapper sits outside the bar's own
@@ -262,6 +262,11 @@ export default function HomePage() {
             </div>
             <button
               onClick={() => handleSearch(query, location)}
+              className="search-btn"
+              // The label disappears on a phone, so the button needs a name of
+              // its own — an icon alone announces as "button" to a screen
+              // reader.
+              aria-label="Search jobs"
               style={{
                 background: color.brand.base,
                 border: "none",
@@ -272,6 +277,9 @@ export default function HomePage() {
                 color: color.surface.base,
                 transition: "background 0.15s",
                 whiteSpace: "nowrap",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
               onMouseEnter={(e) =>
                 (e.currentTarget.style.background = color.brand.hover)
@@ -280,7 +288,21 @@ export default function HomePage() {
                 (e.currentTarget.style.background = color.brand.base)
               }
             >
-              Search Jobs
+              <span className="search-btn-label">Search Jobs</span>
+              <svg
+                className="search-btn-icon"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
             </button>
           </div>
             <SearchSuggest
@@ -338,6 +360,7 @@ export default function HomePage() {
         }}
       >
         <div
+          className="trust-grid"
           style={{
             maxWidth: 1200,
             margin: "0 auto",
@@ -361,6 +384,7 @@ export default function HomePage() {
               <IconBadge name={item.icon} size="sm" />
               <div>
                 <div
+                  className="trust-label"
                   style={{
                     fontSize: size.sm,
                     fontWeight: weight.semibold,
@@ -370,6 +394,7 @@ export default function HomePage() {
                   {item.label}
                 </div>
                 <div
+                  className="trust-sub"
                   style={{
                     fontSize: size["2xs"],
                     color: color.text.muted,
@@ -382,7 +407,28 @@ export default function HomePage() {
             </div>
           ))}
         </div>
-        <style>{`@media(max-width:768px){.trust-grid{grid-template-columns:repeat(2,1fr)!important;}}`}</style>
+        <style>{`
+          /* Below the desktop breakpoint these become one swipeable row rather
+             than a grid. Four cells at 1fr on a phone gives every card less
+             width than its own caption needs, which is what wrapped "Updated
+             Daily" onto two lines and pushed the fourth card off-screen.
+             Scrolling keeps each card whole and legible. */
+          @media(max-width:768px){
+            .trust-grid{
+              display:flex!important;
+              gap:0;
+              overflow-x:auto;
+              scroll-snap-type:x proximity;
+              -webkit-overflow-scrolling:touch;
+              /* The row is visibly clipped mid-card, which is a better scroll
+                 affordance than a bar that most mobile browsers hide anyway. */
+              scrollbar-width:none;
+            }
+            .trust-grid::-webkit-scrollbar{display:none;}
+            .trust-grid > *{flex:0 0 auto;scroll-snap-align:start;}
+            .trust-label,.trust-sub{white-space:nowrap;}
+          }
+        `}</style>
       </section>
 
       <div
@@ -963,8 +1009,14 @@ export default function HomePage() {
         @media (max-width: 900px) {
           .main-grid { grid-template-columns: 1fr !important; }
         }
+        /* The icon is the phone-sized form of this control; the label is the
+           desktop one. Exactly one is ever displayed. */
+        .search-btn-icon { display: none; }
         @media (max-width: 600px) {
           .loc-field { display: none !important; }
+          .search-btn { padding: 0 18px !important; }
+          .search-btn-label { display: none; }
+          .search-btn-icon { display: block; }
         }
       `}</style>
       <SiteFooter />
