@@ -47,6 +47,10 @@ class _JobWriteBase(StrictModel):
     company_name: str = Field(min_length=2, max_length=160)
     company_id: UUID | None = None
     company_logo: HttpUrl | None = None
+    #: Where the employer lives on the web — a careers page or a home page,
+    #: not the apply link. Optional: a listing harvested from an aggregator
+    #: often has no employer site to point at.
+    company_website: HttpUrl | None = None
     logo_palette: int = Field(default=0, ge=0, le=5)
 
     category_id: UUID
@@ -77,6 +81,15 @@ class _JobWriteBase(StrictModel):
     @classmethod
     def currency_uppercase(cls, value: str) -> str:
         return value.upper()
+
+    @field_validator("company_website")
+    @classmethod
+    def website_is_web(cls, value: HttpUrl | None) -> HttpUrl | None:
+        """http(s) only. `mailto:` and `javascript:` are not company sites, and
+        this URL is rendered as a link a reader clicks."""
+        if value is not None and value.scheme not in {"http", "https"}:
+            raise ValueError("company_website must be http or https")
+        return value
 
     @field_validator("apply_url")
     @classmethod
@@ -128,6 +141,8 @@ class JobUpdate(StrictModel):
     company_name: str | None = Field(default=None, min_length=2, max_length=160)
     company_id: UUID | None = None
     company_logo: HttpUrl | None = None
+    #: Explicitly null clears the link; absent leaves it untouched.
+    company_website: HttpUrl | None = None
     logo_palette: int | None = Field(default=None, ge=0, le=5)
     category_id: UUID | None = None
     location_id: UUID | None = None
@@ -148,6 +163,14 @@ class JobUpdate(StrictModel):
     benefits: list[ShortText] | None = Field(default=None, max_length=30)
     apply_url: HttpUrl | None = None
     expiry_date: date | None = None
+
+    @field_validator("salary_currency")
+    @classmethod
+    def currency_uppercase(cls, value: str | None) -> str | None:
+        """Same normalisation the create path applies — otherwise a PATCH is
+        the one way to store `usd`, and two codes for one currency read as two
+        currencies everywhere they are compared."""
+        return value.upper() if value is not None else None
 
 
 # --- action payloads -----------------------------------------------------
@@ -222,6 +245,9 @@ class JobSummary(ORMModel):
 
 
 class JobDetail(JobSummary):
+    #: Only on the detail response. A card does not link to the employer, and
+    #: twenty of these on a list page is twenty strings nothing renders.
+    company_website: str | None = None
     description: str
     requirements: list[str]
     responsibilities: list[str]

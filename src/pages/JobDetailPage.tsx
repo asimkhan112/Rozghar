@@ -240,15 +240,39 @@ export default function JobDetailPage() {
                     >
                       {job.title}
                     </h1>
-                    <div
-                      style={{
-                        fontSize: size.md,
-                        color: color.brand.base,
-                        fontWeight: weight.semibold,
-                      }}
-                    >
-                      {job.company}
-                    </div>
+                    {/* The employer's own site, when the listing records
+                        one. A reader deciding whether to apply wants the
+                        company, not the application form — and a link that
+                        leaves the site carries `noopener noreferrer`. */}
+                    {job.companyWebsite ? (
+                      <a
+                        href={job.companyWebsite}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          ...linkReset,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
+                          fontSize: size.md,
+                          color: color.brand.base,
+                          fontWeight: weight.semibold,
+                        }}
+                      >
+                        {job.company}
+                        <Icon name="external" size={13} />
+                      </a>
+                    ) : (
+                      <div
+                        style={{
+                          fontSize: size.md,
+                          color: color.brand.base,
+                          fontWeight: weight.semibold,
+                        }}
+                      >
+                        {job.company}
+                      </div>
+                    )}
                   </div>
                   <span
                     style={{ ...badgeStyle(job.badge, "md"), flexShrink: 0 }}

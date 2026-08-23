@@ -107,6 +107,7 @@ export function toDetailDto(job, categories, all) {
     .slice(0, 3)
   return {
     ...toDto(job, categories),
+    company_website: job.companyWebsite ?? null,
     description: job.description,
     requirements: job.requirements,
     responsibilities: job.responsibilities,

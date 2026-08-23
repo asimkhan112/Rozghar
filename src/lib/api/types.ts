@@ -97,6 +97,8 @@ export interface JobSummaryDto {
 }
 
 export interface JobDetailDto extends JobSummaryDto {
+  /** The employer's site. Detail-only — list rows do not carry it. */
+  company_website: string | null
   description: string
   requirements: string[]
   responsibilities: string[]

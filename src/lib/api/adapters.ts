@@ -69,10 +69,27 @@ function groupDigits(value: number): string {
 }
 
 /**
+ * Currencies with a symbol a reader recognises faster than the code.
+ *
+ * Deliberately partial. A code with no entry here is printed as the code,
+ * which is the honest fallback: `RM 8,000` is only clearer than `MYR 8,000` to
+ * someone who already knows the currency, and `¥` is two different currencies.
+ */
+const CURRENCY_SYMBOL: Record<string, string> = {
+  USD: "$", EUR: "€", GBP: "£", INR: "₹", JPY: "¥", CNY: "CN¥",
+  AUD: "A$", CAD: "C$", NZD: "NZ$", SGD: "S$", HKD: "HK$",
+  PHP: "₱", THB: "฿", TRY: "₺", NGN: "₦", ZAR: "R", BDT: "৳", ILS: "₪",
+}
+
+/**
  * `PKR 250,000 – 350,000/mo`, or `$3,000 – $4,500/mo` for USD.
  *
- * USD repeats the symbol on both bounds because that is how the prototype
- * rendered it; PKR carries the code once as a prefix.
+ * A currency with a known symbol repeats it on both bounds, the way the
+ * prototype rendered dollars; anything else carries its code once as a prefix,
+ * the way it rendered rupees. Every currency the API can state is covered by
+ * one branch or the other — a listing paid in dirhams reads `AED 12,000/mo`
+ * rather than being silently relabelled as rupees, which is what this function
+ * did while the admin form could only enter one currency.
  */
 export function formatSalary(salary: SalaryDto): string {
   if (!salary.disclosed) return SALARY_UNDISCLOSED
@@ -82,10 +99,10 @@ export function formatSalary(salary: SalaryDto): string {
   if (min === null && max === null) return SALARY_UNDISCLOSED
 
   const suffix = PERIOD_SUFFIX[salary.period] ?? ""
-  const isUsd = salary.currency === "USD"
+  const symbol = CURRENCY_SYMBOL[salary.currency.toUpperCase()]
   const money = (value: number) =>
-    isUsd ? `$${groupDigits(value)}` : groupDigits(value)
-  const prefix = isUsd ? "" : `${salary.currency} `
+    symbol ? `${symbol}${groupDigits(value)}` : groupDigits(value)
+  const prefix = symbol ? "" : `${salary.currency} `
 
   if (min !== null && max !== null && min !== max) {
     return `${prefix}${money(min)} – ${money(max)}${suffix}`
@@ -178,6 +195,8 @@ export function toJob(dto: JobSummaryDto, now?: number): Job {
     slug: dto.slug,
     title: dto.title,
     company: dto.company_name,
+    // List rows do not carry the employer's site; only `toJobDetail` fills it.
+    companyWebsite: null,
     logo: initials(dto.company_name),
     logoPalette: dto.logo_palette,
     location: dto.location.display_name,
@@ -187,7 +206,7 @@ export function toJob(dto: JobSummaryDto, now?: number): Job {
     salary: formatSalary(dto.salary),
     salaryMin: dto.salary.min === null ? 0 : Number(dto.salary.min),
     salaryMax: dto.salary.max === null ? 0 : Number(dto.salary.max),
-    salaryCurrency: dto.salary.currency === "USD" ? "USD" : "PKR",
+    salaryCurrency: dto.salary.currency,
     salaryPeriod: dto.salary.period,
     experience: formatExperience(dto),
     experienceMin: dto.experience_min_years ?? 0,
@@ -213,6 +232,7 @@ export function toJob(dto: JobSummaryDto, now?: number): Job {
 export function toJobDetail(dto: JobDetailDto, now?: number): Job {
   return {
     ...toJob(dto, now),
+    companyWebsite: dto.company_website,
     description: dto.description,
     requirements: dto.requirements,
     responsibilities: dto.responsibilities,

@@ -98,7 +98,7 @@ async def create_job(
 ) -> JobAdmin:
     data = payload.model_dump(exclude_unset=False)
     # Pydantic URL types are not what SQLAlchemy wants to persist.
-    for url_field in ("apply_url", "company_logo"):
+    for url_field in ("apply_url", "company_logo", "company_website"):
         if data.get(url_field) is not None:
             data[url_field] = str(data[url_field])
 
@@ -133,7 +133,7 @@ async def update_job(
     """`If-Match` carries the version last read. When supplied, a concurrent
     edit is rejected rather than silently overwritten."""
     changes = payload.model_dump(exclude_unset=True)
-    for url_field in ("apply_url", "company_logo"):
+    for url_field in ("apply_url", "company_logo", "company_website"):
         if changes.get(url_field) is not None:
             changes[url_field] = str(changes[url_field])
 

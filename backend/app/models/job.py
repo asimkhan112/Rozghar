@@ -60,6 +60,10 @@ class Job(UUIDPkMixin, TimestampMixin, SoftDeleteMixin, Base):
         nullable=True,
     )
     company_logo: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    #: The employer's own site. Denormalised alongside `company_name` for the
+    #: same reason: V1 identifies an employer by text on the listing, and the
+    #: link a reader wants is the one the editor typed while entering the job.
+    company_website: Mapped[str | None] = mapped_column(String(500), nullable=True)
     logo_palette: Mapped[int] = mapped_column(
         SmallInteger(), nullable=False, default=0, server_default=text("0")
     )

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { color, radius, size, weight } from '@/design-system'
 import { FField, FormSection, FRow, IS } from '@/components/ui/AdminForm'
+import TagInput from '@/components/ui/TagInput'
 import { useToast } from '@/stores/useToastStore'
 import {
   useCategories,
@@ -20,6 +21,7 @@ import type { JobWriteDto } from '@/lib/api/admin-types'
 import ShareJobModal from '@/components/ShareJobModal'
 import AIDraftReview, { draftToFields, type DraftFields } from '@/components/AIDraftReview'
 import Icon from '@/components/Icon'
+import { CURRENCIES, CURRENCY_LABEL, SALARY_PERIODS } from '@/types/job'
 
 const WORK_TYPE = { 'On-site': 'on_site', Remote: 'remote', Hybrid: 'hybrid' } as const
 const EMPLOYMENT_TYPE = {
@@ -39,23 +41,37 @@ const EXPERIENCE_LEVELS = [
   ['executive', 'Executive'],
 ] as const
 
+/** How each pay period reads in the picker and in the AI prompt. */
+const PERIOD_LABEL: Record<string, string> = {
+  month: 'per month',
+  year: 'per year',
+  hour: 'per hour',
+}
+
 const EMPTY = {
-  title: '', company: '', categoryId: '', locationId: '',
+  title: '', company: '', companyWebsite: '', categoryId: '', locationId: '',
   workType: 'On-site', employmentType: 'Full-time', experienceLevel: 'mid',
-  salaryMin: '', salaryMax: '', description: '', requirements: '',
-  responsibilities: '', benefits: '', sourceUrl: '', publishMode: 'publish', expiry: '',
+  salaryMin: '', salaryMax: '', salaryCurrency: 'PKR', salaryPeriod: 'month',
+  description: '',
+  // Lists, not text. These are arrays on the API and separate chips on the
+  // listing page; collecting them as one string only pushed the splitting
+  // problem — and its off-by-one bugs — into this component.
+  requirements: [] as string[],
+  responsibilities: [] as string[],
+  benefits: [] as string[],
+  sourceUrl: '', publishMode: 'publish', expiry: '',
 }
 
 /** Which step holds each field the API can reject. */
 const STEP_FOR_FIELD: Record<string, number> = {
-  title: 0, company_name: 0, category_id: 0, location_id: 0,
+  title: 0, company_name: 0, company_website: 0, category_id: 0, location_id: 0,
   work_type: 1, employment_type: 1, experience_level: 1,
-  salary_min: 1, salary_max: 1,
+  salary_min: 1, salary_max: 1, salary_currency: 1, salary_period: 1,
   description: 2, requirements: 2, responsibilities: 2, benefits: 2,
   apply_url: 3, expiry_date: 3, status: 3,
 }
 
-/** Textareas collect one item per line; the API takes arrays. */
+/** The AI review panel diffs text blocks; the form and the API hold arrays. */
 function toList(value: string): string[] {
   return value.split('\n').map(line => line.trim()).filter(Boolean)
 }
@@ -104,6 +120,7 @@ export default function AddJobSection() {
     setForm({
       title: job.title,
       company: job.company,
+      companyWebsite: job.companyWebsite ?? '',
       categoryId: job.categoryId,
       locationId: job.locationId,
       workType: job.workType,
@@ -112,10 +129,12 @@ export default function AddJobSection() {
         EXPERIENCE_LEVELS.find(([, label]) => label === job.experience)?.[0] ?? 'mid',
       salaryMin: job.salaryMin ? String(job.salaryMin) : '',
       salaryMax: job.salaryMax ? String(job.salaryMax) : '',
+      salaryCurrency: job.salaryCurrency || 'PKR',
+      salaryPeriod: job.salaryPeriod || 'month',
       description: job.description,
-      requirements: job.requirements.join('\n'),
-      responsibilities: job.responsibilities.join('\n'),
-      benefits: job.benefits.join('\n'),
+      requirements: [...job.requirements],
+      responsibilities: [...job.responsibilities],
+      benefits: [...job.benefits],
       sourceUrl: job.applyUrl,
       publishMode: job.status === 'published' ? 'publish' : 'draft',
       expiry: job.expiresAt ?? '',
@@ -125,6 +144,9 @@ export default function AddJobSection() {
   /** Field-level messages from a 422, keyed by the API's field names. */
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({})
   const up = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }))
+  /** The list fields, which hold arrays rather than text. */
+  const upList = (k: 'requirements' | 'responsibilities' | 'benefits', v: string[]) =>
+    setForm(p => ({ ...p, [k]: v }))
 
   useEffect(() => {
     // Leaving edit mode does not unmount this component — the admin console
@@ -177,9 +199,11 @@ export default function AddJobSection() {
   /** The form's current content, in the shape the review modal compares. */
   const currentFields = (): DraftFields => ({
     description: form.description,
-    responsibilities: form.responsibilities,
-    requirements: form.requirements,
-    benefits: form.benefits,
+    // The review panel diffs prose word by word, so the lists are handed over
+    // as text and split back into items when the editor accepts them.
+    responsibilities: form.responsibilities.join('\n'),
+    requirements: form.requirements.join('\n'),
+    benefits: form.benefits.join('\n'),
   })
 
   /**
@@ -225,12 +249,14 @@ export default function AddJobSection() {
         // explicitly that an absent salary is undisclosed, not unknown.
         salary:
           form.salaryMin || form.salaryMax
-            ? `PKR ${form.salaryMin || '?'} – ${form.salaryMax || '?'} per month`
+            ? `${form.salaryCurrency} ${form.salaryMin || '?'} – ${form.salaryMax || '?'} ${
+                PERIOD_LABEL[form.salaryPeriod] ?? 'per month'
+              }`
             : null,
         // Category doubles as a domain hint; requirements are the skill list.
         skills: [
           ...(category ? [category.name] : []),
-          ...toList(form.requirements),
+          ...form.requirements,
         ].slice(0, 20),
       })
       setDraft(draftToFields(result))
@@ -243,7 +269,15 @@ export default function AddJobSection() {
 
   /** Applies only the fields the editor ticked. */
   const applyDraft = (accepted: Partial<DraftFields>) => {
-    setForm(prev => ({ ...prev, ...accepted }))
+    setForm(prev => ({
+      ...prev,
+      ...(accepted.description !== undefined ? { description: accepted.description } : {}),
+      ...(accepted.requirements !== undefined ? { requirements: toList(accepted.requirements) } : {}),
+      ...(accepted.responsibilities !== undefined
+        ? { responsibilities: toList(accepted.responsibilities) }
+        : {}),
+      ...(accepted.benefits !== undefined ? { benefits: toList(accepted.benefits) } : {}),
+    }))
     setDraft(null)
     const count = Object.keys(accepted).length
     showToast(count ? `Applied ${count} suggested change${count === 1 ? '' : 's'}` : 'Nothing applied')
@@ -256,6 +290,9 @@ export default function AddJobSection() {
     const body: JobWriteDto = {
       title: form.title.trim(),
       company_name: form.company.trim(),
+      // Null rather than an empty string: absent means "this employer has no
+      // site on file", which is a different statement from "".
+      company_website: form.companyWebsite.trim() || null,
       category_id: form.categoryId,
       location_id: form.locationId,
       work_type: WORK_TYPE[form.workType as keyof typeof WORK_TYPE],
@@ -263,13 +300,15 @@ export default function AddJobSection() {
       experience_level: form.experienceLevel as JobWriteDto['experience_level'],
       salary_min: form.salaryMin ? Number(form.salaryMin) : null,
       salary_max: form.salaryMax ? Number(form.salaryMax) : null,
+      salary_currency: form.salaryCurrency,
+      salary_period: form.salaryPeriod as JobWriteDto['salary_period'],
       // A listing with no figure is marked undisclosed rather than sent as a
       // zero — the API distinguishes the two and the public site says so.
       salary_is_disclosed: Boolean(form.salaryMin || form.salaryMax),
       description: form.description.trim(),
-      requirements: toList(form.requirements),
-      responsibilities: toList(form.responsibilities),
-      benefits: toList(form.benefits),
+      requirements: form.requirements,
+      responsibilities: form.responsibilities,
+      benefits: form.benefits,
       apply_url: form.sourceUrl.trim(),
       expiry_date: form.expiry || null,
       // "Schedule" creates a draft and then publishes it with a future
@@ -397,8 +436,17 @@ export default function AddJobSection() {
         {step === 0 && (
           <FormSection title="Basic Information" subtitle="Core details about the job listing">
             <FRow><FField label="Job Title *"><input value={form.title} onChange={e => up('title', e.target.value)} placeholder="e.g. Senior Software Engineer" style={IS} /></FField></FRow>
-            <FRow cols={2}><FField label="Company Name *"><input value={form.company} onChange={e => up('company', e.target.value)} placeholder="e.g. Systems Limited" style={IS} /></FField>
-            <FField label="Category *">
+            <FRow cols={2}>
+              <FField label="Company Name *"><input value={form.company} onChange={e => up('company', e.target.value)} placeholder="e.g. Systems Limited" style={IS} /></FField>
+              {/* The employer's own site, shown as a link on the listing. Not
+                  the apply URL: that is where an application goes, this is
+                  where a reader goes to decide whether to apply at all. */}
+              <FField label="Company Website">
+                <input value={form.companyWebsite} onChange={e => up('companyWebsite', e.target.value)} placeholder="https://systemsltd.com" type="url" style={IS} />
+                <FieldError message={errorFor('company_website')} />
+              </FField>
+            </FRow>
+            <FRow><FField label="Category *">
               {/* Ids, not names: the API needs a category that exists, and a
                   free-text field can only produce one that might not. */}
               <select value={form.categoryId} onChange={e => up('categoryId', e.target.value)} style={IS}>
@@ -462,13 +510,41 @@ export default function AddJobSection() {
                   ))}
                 </select>
               </FField>
+              {/* Not every listing pays in rupees. The code is stored on the
+                  job, so a Dubai salary reads "AED 12,000/mo" everywhere it
+                  appears rather than being relabelled as PKR. */}
+              <FField label="Currency">
+                <select value={form.salaryCurrency} onChange={e => up('salaryCurrency', e.target.value)} style={IS}>
+                  {/* A listing entered before this picker existed, or by an
+                      importer, may carry a code this build does not list.
+                      Offering it back is what stops an unrelated edit from
+                      quietly converting the salary. */}
+                  {!CURRENCIES.includes(form.salaryCurrency as never) && form.salaryCurrency ? (
+                    <option value={form.salaryCurrency}>{form.salaryCurrency}</option>
+                  ) : null}
+                  {CURRENCIES.map(code => (
+                    <option key={code} value={code}>{code} — {CURRENCY_LABEL[code]}</option>
+                  ))}
+                </select>
+                <FieldError message={errorFor('salary_currency')} />
+              </FField>
+            </FRow>
+            <FRow>
               {/* Two numbers rather than one free-text range. The site sorts
                   and filters on salary, which a formatted string cannot do —
                   and the old single field was discarded entirely. */}
-              <FField label="Salary (PKR / month)">
+              <FField label="Salary Range">
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <input value={form.salaryMin} onChange={e => up('salaryMin', e.target.value)} placeholder="Minimum" type="number" min="0" style={IS} />
-                  <input value={form.salaryMax} onChange={e => up('salaryMax', e.target.value)} placeholder="Maximum" type="number" min="0" style={IS} />
+                  <input value={form.salaryMin} onChange={e => up('salaryMin', e.target.value)} placeholder={`Minimum (${form.salaryCurrency})`} type="number" min="0" style={IS} />
+                  <input value={form.salaryMax} onChange={e => up('salaryMax', e.target.value)} placeholder={`Maximum (${form.salaryCurrency})`} type="number" min="0" style={IS} />
+                  <select value={form.salaryPeriod} onChange={e => up('salaryPeriod', e.target.value)} style={{ ...IS, flex: '0 0 140px' }}>
+                    {SALARY_PERIODS.map(period => (
+                      <option key={period} value={period}>{PERIOD_LABEL[period]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ marginTop: 5, fontSize: size['2xs'], color: color.text.muted }}>
+                  Leave both empty to publish the listing as “Salary not disclosed”.
                 </div>
                 <FieldError message={errorFor('salary_max') ?? errorFor('salary_min')} />
               </FField>
@@ -532,11 +608,37 @@ export default function AddJobSection() {
               <CharacterCount value={form.description} min={50} max={20000} />
               <FieldError message={errorFor('description')} />
             </FField></FRow>
+            {/* Each of these is a list on the job page — requirements render
+                as chips, benefits as ticked cards. Entering them as chips here
+                means the editor sees the same units they publish. */}
             <FRow cols={2}>
-              <FField label="Requirements"><textarea value={form.requirements} onChange={e => up('requirements', e.target.value)} placeholder="One per line" rows={4} style={{ ...IS, resize: 'vertical' }} /></FField>
-              <FField label="Responsibilities"><textarea value={form.responsibilities} onChange={e => up('responsibilities', e.target.value)} placeholder="One per line" rows={4} style={{ ...IS, resize: 'vertical' }} /></FField>
+              <FField label="Requirements">
+                <TagInput
+                  value={form.requirements}
+                  onChange={v => upList('requirements', v)}
+                  placeholder="e.g. 3+ years with React"
+                />
+                <FieldError message={errorFor('requirements')} />
+              </FField>
+              <FField label="Responsibilities">
+                <TagInput
+                  value={form.responsibilities}
+                  onChange={v => upList('responsibilities', v)}
+                  placeholder="e.g. Own the design system"
+                />
+                <FieldError message={errorFor('responsibilities')} />
+              </FField>
             </FRow>
-            <FRow><FField label="Benefits"><input value={form.benefits} onChange={e => up('benefits', e.target.value)} placeholder="e.g. Medical insurance, Remote Fridays…" style={IS} /></FField></FRow>
+            <FRow>
+              <FField label="Benefits">
+                <TagInput
+                  value={form.benefits}
+                  onChange={v => upList('benefits', v)}
+                  placeholder="e.g. Remote work"
+                />
+                <FieldError message={errorFor('benefits')} />
+              </FField>
+            </FRow>
           </FormSection>
         )}
         {step === 3 && (

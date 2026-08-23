@@ -67,6 +67,7 @@ def job_summary(job: Job) -> JobSummary:
 def job_detail(job: Job, related: list[Job] | None = None) -> JobDetail:
     return JobDetail(
         **job_summary(job).model_dump(),
+        company_website=job.company_website,
         description=job.description,
         requirements=list(job.requirements or []),
         responsibilities=list(job.responsibilities or []),

@@ -34,6 +34,8 @@ export type JobAdminPageDto = PaginatedDto<JobAdminDto>
 export interface JobWriteDto {
   title: string
   company_name: string
+  /** Absent leaves the stored link untouched on a PATCH; explicit null clears it. */
+  company_website?: string | null
   category_id: string
   location_id: string
   source_id?: string | null
