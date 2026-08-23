@@ -35,7 +35,7 @@ pnpm dev                           # vite on :8443
 ```
 
 **Admin Account**
-// some thin i need to change to make new live 
+// some 
 email:asim@plenilo.com
 password:blrdqYGl0$LbNW!poudC
 
