@@ -3,6 +3,7 @@ import Navbar from '@/components/Navbar'
 import { color, linkReset, radius, size, tracking, weight } from '@/design-system'
 import { IconBadge } from '@/components/Icon'
 import SiteFooter from '@/components/SiteFooter'
+import { usePageMeta } from '@/lib/seo'
 
 /** Trust claims already made on the homepage, restated as the about copy. */
 const PRINCIPLES = [
@@ -13,6 +14,12 @@ const PRINCIPLES = [
 ] as const
 
 export default function AboutPage() {
+  usePageMeta({
+    title: 'About Us',
+    description:
+      'Why Plenilo.com exists: one honest search across company career pages, job boards and government portals, with expired listings taken down rather than left up.',
+  })
+
   return (
     <div style={{ minHeight: '100vh', background: color.surface.canvas }}>
       <Navbar />

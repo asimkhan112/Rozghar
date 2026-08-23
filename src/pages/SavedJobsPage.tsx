@@ -15,6 +15,7 @@ import { describeError } from "@/lib/http"
 import { ErrorPanel, JobGridSkeleton } from "@/components/QueryState"
 import { IconBadge } from "@/components/Icon"
 import SiteFooter from "@/components/SiteFooter"
+import { usePageMeta } from "@/lib/seo"
 
 export default function SavedJobsPage() {
   const savedIds = useSavedIds()
@@ -27,6 +28,14 @@ export default function SavedJobsPage() {
   // resolved keeps the count honest instead of promising jobs that are gone.
   const saved = data?.items ?? []
   const loading = savedIds.length > 0 && isPending
+
+  // The count rides in the title the way an unread badge does: this list is
+  // the one page a reader leaves open in a background tab.
+  usePageMeta({
+    title: savedIds.length > 0 ? `Saved Jobs (${savedIds.length})` : "Saved Jobs",
+    description:
+      "The jobs you bookmarked on Plenilo.com, kept in this browser. No account, no sync, nothing stored on our servers.",
+  })
 
   return (
     <div style={{ minHeight: "100vh", background: color.surface.canvas }}>

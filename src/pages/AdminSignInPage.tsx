@@ -4,6 +4,7 @@ import { describeError } from '@/lib/http'
 import { useSignIn } from '@/stores/useAuthStore'
 import { authInput, focusRing, linkReset } from '@/design-system'
 import { color, radius, size, tracking, weight } from '@/design-system'
+import { usePageMeta } from '@/lib/seo'
 
 export default function AdminSignInPage() {
   const navigate = useNavigate()
@@ -17,6 +18,8 @@ export default function AdminSignInPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showPass, setShowPass] = useState(false)
+
+  usePageMeta({ title: 'Admin Sign In' })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

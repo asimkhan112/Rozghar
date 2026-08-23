@@ -4,8 +4,11 @@ import Navbar from "../components/Navbar"
 import JobCard from "../components/JobCard"
 import {
   useJobFilters,
+  type JobFilters,
   ALL_CATEGORIES,
+  ALL_EMPLOYMENT,
   ALL_LOCATIONS,
+  ALL_TYPES,
   LOCATIONS,
   CATEGORIES_LIST,
   WORK_TYPES,
@@ -31,6 +34,34 @@ import {
 import { IconBadge } from "@/components/Icon"
 import SearchSuggest, { type SuggestChoice, useSuggestNavigation } from "@/components/SearchSuggest"
 import SiteFooter from "@/components/SiteFooter"
+import { usePageMeta } from "@/lib/seo"
+
+/**
+ * What this result set is called.
+ *
+ * The filters live in the URL, so a filtered list is a page someone bookmarks
+ * and shares — and every one of those bookmarks reading "Browse Jobs" makes
+ * them indistinguishable. The title is assembled from the filters that are
+ * actually applied, in the order a person would say them out loud: "Remote
+ * Marketing Internship Jobs in Karachi".
+ */
+function browseTitle(filters: JobFilters): string {
+  const query = filters.q.trim()
+  // A search for "graphic design jobs" must not become "… jobs Jobs".
+  if (query) return /\bjobs?$/i.test(query) ? query : `${query} Jobs`
+
+  const qualifiers = [
+    filters.workType !== ALL_TYPES ? filters.workType : "",
+    filters.category !== ALL_CATEGORIES ? filters.category : "",
+    filters.employmentType !== ALL_EMPLOYMENT ? filters.employmentType : "",
+  ].filter(Boolean)
+  const subject = qualifiers.length > 0 ? `${qualifiers.join(" ")} Jobs` : "Browse Jobs"
+
+  // "Remote Jobs in Remote" is nobody's phrasing — the work type already said it.
+  const named =
+    filters.location !== ALL_LOCATIONS && filters.location !== filters.workType
+  return named ? `${subject} in ${filters.location}` : subject
+}
 
 export default function JobsPage() {
   const { filters, page, setFilter, setPage, reset, hasAdvancedFilters } =
@@ -39,6 +70,12 @@ export default function JobsPage() {
   const [filterOpen, setFilterOpen] = useState(false)
   const [suggestOpen, setSuggestOpen] = useState(false)
   const suggest = useSuggest(filters.q)
+
+  usePageMeta({
+    title: browseTitle(filters),
+    description:
+      "Search live job openings by keyword, category, location, work type and experience level. Every listing links straight to the employer — no account needed.",
+  })
 
   /** On this page a suggestion sets a filter rather than navigating away —
    *  the reader is already looking at results and expects them to narrow. */

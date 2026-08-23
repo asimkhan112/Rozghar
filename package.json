@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "format": "oxfmt",
+    "icons": "node tools/generate-favicons.mjs",
     "snapshot": "node tools/render-snapshot.mjs",
     "snapshot:diff": "node tools/compare-appearance.mjs",
     "verify:auth": "node tools/verify-auth.mjs"

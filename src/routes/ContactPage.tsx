@@ -3,6 +3,7 @@ import Navbar from '@/components/Navbar'
 import { color, formFieldLabel, formInput, formSelect, formTextarea, radius, size, tracking, weight } from '@/design-system'
 import { IconBadge } from '@/components/Icon'
 import SiteFooter from '@/components/SiteFooter'
+import { usePageMeta } from '@/lib/seo'
 
 const SUBJECTS = ['Report a listing', 'Employer enquiry', 'Feedback', 'Something else']
 
@@ -17,6 +18,12 @@ export default function ContactPage() {
   const [form, setForm] = useState({ name: '', email: '', subject: SUBJECTS[0], message: '' })
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
+
+  usePageMeta({
+    title: 'Contact Us',
+    description:
+      'Report a listing, ask about posting a job, or send feedback to the Plenilo.com team.',
+  })
 
   const update = (key: keyof typeof form, value: string) => setForm(prev => ({ ...prev, [key]: value }))
 

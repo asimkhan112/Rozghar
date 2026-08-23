@@ -2,7 +2,7 @@
   "title": "Plenilo.com — Find Jobs Worldwide",
   "description": "Discover and apply for jobs anywhere in the world — remote, hybrid and on-site — on a platform built for real job seekers. No account required.",
   "robots": {
-    "index": false
+    "index": true
   },
   "accessibility": {
     "addBypassLinks": false,

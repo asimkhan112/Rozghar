@@ -18,6 +18,7 @@ import {
 import Icon, { categoryIcon, IconBadge } from "@/components/Icon"
 import SearchSuggest, { type SuggestChoice, useSuggestNavigation } from "@/components/SearchSuggest"
 import SiteFooter from "@/components/SiteFooter"
+import { DEFAULT_TITLE, usePageMeta } from "@/lib/seo"
 
 const QUICK_FILTERS = [
   "Remote Jobs",
@@ -37,6 +38,10 @@ const TRUST_ITEMS = [
 
 export default function HomePage() {
   const navigate = useNavigate()
+
+  // The landing page is the one page whose subject *is* the site, so it keeps
+  // the brand title rather than prefixing a section name onto it.
+  usePageMeta({ title: DEFAULT_TITLE })
 
   // Four requests rather than one, because these are four different questions
   // and the API answers each with an indexed filter. Fetching the catalogue and

@@ -2,6 +2,7 @@ import { isRouteErrorResponse, useRouteError } from 'react-router'
 import NotFoundPage from './NotFoundPage'
 import { color, radius, size, weight } from '@/design-system'
 import { IconBadge } from '@/components/Icon'
+import { usePageMeta } from '@/lib/seo'
 
 /**
  * Catches render and loader failures so a single broken component cannot blank
@@ -10,8 +11,13 @@ import { IconBadge } from '@/components/Icon'
  */
 export default function RouteErrorBoundary() {
   const error = useRouteError()
+  const notFound = isRouteErrorResponse(error) && error.status === 404
 
-  if (isRouteErrorResponse(error) && error.status === 404) {
+  // `null` while the 404 surface is what renders: it sets the honest title,
+  // and a parent's effect would otherwise run after the child's and win.
+  usePageMeta(notFound ? null : { title: 'Something Went Wrong' })
+
+  if (notFound) {
     return <NotFoundPage />
   }
 

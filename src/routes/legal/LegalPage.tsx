@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import Navbar from '@/components/Navbar'
 import SiteFooter from '@/components/SiteFooter'
+import { usePageMeta } from '@/lib/seo'
 import { color, radius, size, tracking, weight } from '@/design-system'
 
 /**
@@ -20,6 +21,11 @@ export function LegalPage({
   updated: string
   children: ReactNode
 }) {
+  // Both policy pages already state their own heading and summary; the tab
+  // takes the same two, so a bookmarked policy is identifiable without being
+  // opened.
+  usePageMeta({ title, description: intro })
+
   return (
     <div style={{ minHeight: '100vh', background: color.surface.canvas, display: 'flex', flexDirection: 'column' }}>
       <Navbar />

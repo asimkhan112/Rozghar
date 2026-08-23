@@ -22,6 +22,7 @@ import { trackApplyClick, trackJobSaved, trackJobView } from "@/lib/analytics"
 import NotFoundPage from "@/routes/NotFoundPage"
 import Icon, { IconBadge } from "@/components/Icon"
 import SiteFooter from "@/components/SiteFooter"
+import { usePageMeta } from "@/lib/seo"
 
 export default function JobDetailPage() {
   const { slug } = useParams()
@@ -42,15 +43,34 @@ export default function JobDetailPage() {
     trackJobView(job?.id)
   }, [job?.id])
 
-  if (isPending) return <JobDetailSkeleton />
-
   // A 404 or a 410 both mean "there is nothing to show here". Anything else is
   // a failure the visitor can retry, and must not be disguised as a missing
   // listing — a server outage is not a dead link.
+  const gone =
+    isError &&
+    error instanceof ApiError &&
+    (error.status === 404 || error.status === 410)
+
+  // The listing itself is the title, phrased the way a job link reads
+  // everywhere else: role, then employer. Until it resolves the tab says what
+  // is loading rather than inheriting the title of the page just left, and a
+  // removed listing defers to the 404 surface it falls back to.
+  const missing = gone || (!isPending && !isError && !job)
+  const pay = job && (job.salaryMin > 0 || job.salaryMax > 0) ? `, ${job.salary}` : ""
+  usePageMeta(
+    missing
+      ? null
+      : job
+        ? {
+            title: `${job.title} at ${job.company}`,
+            description: `${job.title} at ${job.company} — ${job.location}. ${job.employmentType}, ${job.workType}${pay}. Apply directly on Plenilo.com.`,
+          }
+        : { title: "Job Details" },
+  )
+
+  if (isPending) return <JobDetailSkeleton />
+
   if (isError) {
-    const gone =
-      error instanceof ApiError &&
-      (error.status === 404 || error.status === 410)
     if (gone) return <NotFoundPage />
     return (
       <div style={{ minHeight: "100vh", background: _c.surface.canvas }}>

@@ -5,6 +5,7 @@ import { useAdminSidebarOpen, useSetAdminSidebarOpen } from '@/stores/usePrefere
 import { useSignOut } from '@/stores/useAuthStore'
 import { useToastDismiss, useToastId, useToastMessage } from '@/stores/useToastStore'
 import Icon from '@/components/Icon'
+import { usePageMeta } from '@/lib/seo'
 
 /** Section key -> URL segment. The dashboard is the index route. */
 const SECTION_PATH: Record<string, string> = {
@@ -42,6 +43,11 @@ export default function AdminLayout() {
     const path = SECTION_PATH[item.key]
     return path ? pathname === `${ADMIN_ROOT}/${path}` : pathname === ADMIN_ROOT
   })
+
+  // The sections are child routes of this shell, so their titles are set here
+  // rather than nine times over — the sidebar label is already the name of the
+  // section, and a second copy in each file would only drift from it.
+  usePageMeta({ title: `${current?.label ?? 'Dashboard'} · Admin` })
 
   const handleSignOut = () => {
     signOut()

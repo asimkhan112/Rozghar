@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Plenilo.com">
+  <title>Plenilo.com</title>
+  <rect width="64" height="64" rx="14" fill="#33A4BB"/>
+  <path fill="#fff" fill-rule="evenodd" d="M12 15H20A11 11 0 0 1 20 37V49H12ZM20 20A6 6 0 0 1 20 32Z"/>
+  <path fill="#fff" d="M36 15H44V42H53V49H36Z"/>
+</svg>
