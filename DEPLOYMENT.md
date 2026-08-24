@@ -61,10 +61,27 @@ migration exits the container rather than serving a half-migrated schema.
 outside `local`/`test`. That is deliberate: forgeable tokens are worse than a
 failed deploy.
 
-Then create the first admin from Railway's shell:
+Then create the first admin from Railway's shell.
+
+Two things about that shell differ from the app's own runtime, and both fail in
+ways that look like broken code rather than a broken environment:
+
+* Nixpacks installs into `/opt/venv`, which the start command gets on `PATH` and
+  an interactive shell does not — a bare `python` is the system one and raises
+  `ModuleNotFoundError: No module named 'sqlalchemy'`.
+* `LD_LIBRARY_PATH` is set for the runtime and not for the shell, so `greenlet`
+  cannot load `libstdc++.so.6` and every database call dies with
+  `ValueError: the greenlet library is required to use this function`.
 
 ```bash
-python -m app.cli bootstrap-admin --email you@plenilo.com --name "Your Name" --generate-password
+export LD_LIBRARY_PATH=$(dirname $(find /nix/store -name libstdc++.so.6 2>/dev/null | head -1)):$LD_LIBRARY_PATH
+PY=/opt/venv/bin/python
+
+$PY -m app.cli bootstrap-admin --email you@plenilo.com --name "Your Name" --generate-password
+
+# A fresh database also needs the categories and locations every listing
+# references — without them the USAJOBS import has nowhere to file anything.
+$PY -m app.cli seed-taxonomy
 ```
 
 ## 3. Vercel — frontend

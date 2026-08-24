@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -50,6 +51,9 @@ class ImportResult:
     than folded into `failed`.
     """
 
+    #: Announcements the filter matches in total, which can exceed `fetched`
+    #: when the page cap bites.
+    available: int = 0
     fetched: int = 0
     created: int = 0
     skipped: int = 0
@@ -58,6 +62,7 @@ class ImportResult:
 
     def as_dict(self) -> dict[str, object]:
         return {
+            "available": self.available,
             "fetched": self.fetched,
             "created": self.created,
             "skipped": self.skipped,
@@ -84,17 +89,24 @@ class USAJobsImportService:
 
         from app.core.config import settings
 
-        descriptors = await self.client.search(
-            series=settings.usajobs_series,
-            days_posted=settings.usajobs_days_posted,
-            page_size=settings.usajobs_page_size,
-        )
-        result = ImportResult(fetched=len(descriptors))
+        # Resolved once, before anything is fetched. A database with no
+        # taxonomy fails every single row otherwise, and 250 identical row
+        # errors bury the one fact that matters: the seed has not been run.
+        fallback = await self.categories.get_by_slug(DEFAULT_CATEGORY)
+        if fallback is None:
+            raise ImportMisconfigured(
+                "No categories exist in this database, so imported listings have nowhere "
+                "to be filed. Run `python -m app.cli seed-taxonomy` against it first."
+            )
+
+        descriptors, available = await self._fetch(settings)
+        result = ImportResult(fetched=len(descriptors), available=available)
 
         # One query for every reference already held, rather than one per
         # announcement: a 250-row page would otherwise be 250 round trips
         # before a single job is created.
         known = await self._known_refs(source.id)
+        categories: dict[str, UUID] = {DEFAULT_CATEGORY: fallback.id}
 
         for descriptor in descriptors:
             mapped = map_announcement(descriptor)
@@ -106,7 +118,11 @@ class USAJobsImportService:
                 continue
             try:
                 await self._create(
-                    mapped, source_id=source.id, principal=principal, ip_hash=ip_hash
+                    mapped,
+                    source_id=source.id,
+                    categories=categories,
+                    principal=principal,
+                    ip_hash=ip_hash,
                 )
             except Exception as exc:  # noqa: BLE001 - one bad row must not end the run
                 result.failed += 1
@@ -115,14 +131,20 @@ class USAJobsImportService:
                     "usajobs import row failed",
                     extra={"event": "usajobs.row_failed", "ref": mapped.source_ref},
                 )
+                # Rolling back expires every object the session holds, so the
+                # caches are dropped with it — a stale identity map is how one
+                # bad row turns into 249 confusing ones.
                 await self.session.rollback()
+                categories = {}
                 continue
             known.add(mapped.source_ref)
             result.created += 1
 
-        source.last_run_at = datetime.now(UTC)
-        if result.created or not result.failed:
-            source.last_success_at = datetime.now(UTC)
+        source = await self.sources.get_by_slug(SOURCE_SLUG)
+        if source is not None:
+            source.last_run_at = datetime.now(UTC)
+            if result.created or not result.failed:
+                source.last_success_at = datetime.now(UTC)
         await self.session.commit()
 
         # `safe_extra`, because the summary carries a `created` key and that is
@@ -133,6 +155,33 @@ class USAJobsImportService:
             extra=safe_extra({"event": "usajobs.done", **result.as_dict()}),
         )
         return result
+
+    async def _fetch(self, settings: Any) -> tuple[list[dict[str, Any]], int]:
+        """Walks pages until the results run out or the cap is reached.
+
+        Stopping at the first page would strand everything beyond it: the next
+        run asks for the same page, recognises all of it, and reports nothing
+        new — so the remainder is unreachable rather than merely delayed.
+        """
+        collected: list[dict[str, Any]] = []
+        available = 0
+        for page in range(1, settings.usajobs_max_pages + 1):
+            batch, total = await self.client.search(
+                series=settings.usajobs_series,
+                days_posted=settings.usajobs_days_posted,
+                page_size=settings.usajobs_page_size,
+                page=page,
+            )
+            available = total or available
+            collected.extend(batch)
+            if len(batch) < settings.usajobs_page_size or len(collected) >= available:
+                break
+        if available > len(collected):
+            logger.info(
+                "usajobs page cap reached",
+                extra={"event": "usajobs.capped", "seen": len(collected), "total": available},
+            )
+        return collected, available
 
     async def _known_refs(self, source_id: UUID) -> set[str]:
         rows = await self.session.execute(
@@ -149,21 +198,28 @@ class USAJobsImportService:
         mapped: MappedJob,
         *,
         source_id: UUID,
+        categories: dict[str, UUID],
         principal: Principal,
         ip_hash: str | None,
     ) -> None:
-        category = await self.categories.get_by_slug(mapped.category_slug)
-        if category is None:
-            category = await self.categories.get_by_slug(DEFAULT_CATEGORY)
-        if category is None:
-            raise ImportMisconfigured(
-                "No category to file imported listings under. Run the taxonomy seed."
-            )
+        category_id = categories.get(mapped.category_slug)
+        if category_id is None:
+            found = await self.categories.get_by_slug(mapped.category_slug)
+            if found is None:
+                found = await self.categories.get_by_slug(DEFAULT_CATEGORY)
+            if found is None:
+                raise ImportMisconfigured(
+                    "No category to file imported listings under. Run the taxonomy seed."
+                )
+            category_id = found.id
+            # Cached by slug, not by row: holding the ORM object across a
+            # rollback is what expires it into a lazy load in a sync context.
+            categories[mapped.category_slug] = category_id
 
         location = await self._ensure_location(mapped)
         data = {
             **mapped.data,
-            "category_id": category.id,
+            "category_id": category_id,
             "location_id": location.id,
             "source_id": source_id,
             "source_ref": mapped.source_ref,

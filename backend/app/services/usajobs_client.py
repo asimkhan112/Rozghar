@@ -64,12 +64,13 @@ class USAJobsClient:
         days_posted: int,
         page_size: int,
         page: int = 1,
-    ) -> list[dict[str, Any]]:
-        """One page of announcements, as raw `MatchedObjectDescriptor` dicts.
+    ) -> tuple[list[dict[str, Any]], int]:
+        """One page of announcements, plus how many exist in total.
 
-        Returns the descriptors rather than the envelope: nothing downstream
-        needs the refiners or the relevance rank, and unwrapping here keeps the
-        mapper's input the shape its tests use.
+        Returns `(descriptors, total)` — the raw `MatchedObjectDescriptor`
+        dicts rather than the envelope, because nothing downstream needs the
+        refiners or the relevance rank, and the total because the caller has to
+        know whether it has seen everything.
         """
         if not self.api_key:
             raise USAJobsUnavailable(
@@ -114,7 +115,9 @@ class USAJobsClient:
         except ValueError as exc:
             raise USAJobsFailed("The USAJOBS API returned a response that was not JSON.") from exc
 
-        items = payload.get("SearchResult", {}).get("SearchResultItems", [])
+        result = payload.get("SearchResult", {})
+        total = int(result.get("SearchResultCountAll") or 0)
+        items = result.get("SearchResultItems", [])
         descriptors = []
         for item in items:
             descriptor = item.get("MatchedObjectDescriptor")
@@ -124,7 +127,7 @@ class USAJobsClient:
             # only stable identity a listing has.
             descriptor = {**descriptor, "_MatchedObjectId": str(item.get("MatchedObjectId", ""))}
             descriptors.append(descriptor)
-        return descriptors
+        return descriptors, total
 
 
 __all__ = ["USAJobsClient", "USAJobsFailed", "USAJobsUnavailable"]

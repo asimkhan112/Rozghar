@@ -10,7 +10,10 @@ from app.schemas.common import ORMModel
 
 
 class ImportRun(ORMModel):
-    #: Announcements the API returned.
+    #: Announcements the filter matches in total. Larger than `fetched` when
+    #: the page cap stopped the run short of everything available.
+    available: int
+    #: Announcements this run actually read.
     fetched: int
     #: New drafts created by this run.
     created: int

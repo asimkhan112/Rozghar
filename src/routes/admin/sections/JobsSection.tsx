@@ -88,7 +88,10 @@ export default function JobsSection() {
       const run = await importJobs.mutateAsync()
       const parts = [`${run.created} new draft${run.created === 1 ? "" : "s"}`]
       if (run.skipped) parts.push(`${run.skipped} already imported`)
-      if (run.failed) parts.push(`${run.failed} skipped`)
+      if (run.failed) parts.push(`${run.failed} could not be read`)
+      // Said out loud rather than left implicit: a run that stopped at the page
+      // cap looks identical to one that saw everything.
+      if (run.available > run.fetched) parts.push(`${run.available - run.fetched} more available`)
       showToast(parts.join(", "))
       if (run.created > 0) setStatusFilter("Draft")
     } catch (err) {

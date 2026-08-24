@@ -205,9 +205,15 @@ class Settings(BaseSettings):
     #: Days back to search. The API accepts 0-60.
     usajobs_days_posted: int = 15
 
-    #: Listings per fetch run. One page of 250 is a single request and a
-    #: reviewable number of drafts; the API's own ceiling is 500.
+    #: Listings per request. The API's own ceiling is 500.
     usajobs_page_size: int = 250
+
+    #: Pages a single run will walk. The search filter routinely matches more
+    #: than one page, and stopping at the first would leave the rest
+    #: permanently unreachable — every later run would re-skip the same 250.
+    #: Four pages is a thousand listings, well inside the API's 10,000-row
+    #: ceiling for one query.
+    usajobs_max_pages: int = 4
 
     # --- startup ---------------------------------------------------------
     #: When true, a mismatch between the Permission enum and the permissions

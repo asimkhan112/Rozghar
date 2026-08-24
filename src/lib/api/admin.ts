@@ -141,6 +141,7 @@ export async function updateJob(
 /** Soft delete. The row survives — audit entries and `created_by` reference it. */
 /** The result of one USAJOBS import run. */
 export interface ImportRun {
+  available: number
   fetched: number
   created: number
   skipped: number
