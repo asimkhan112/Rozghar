@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import JobStatus
 from app.core.exceptions import DomainError
+from app.core.logging import safe_extra
 from app.core.slug import slugify
 from app.models.job import Job
 from app.models.taxonomy import Location
@@ -124,7 +125,13 @@ class USAJobsImportService:
             source.last_success_at = datetime.now(UTC)
         await self.session.commit()
 
-        logger.info("usajobs import finished", extra={"event": "usajobs.done", **result.as_dict()})
+        # `safe_extra`, because the summary carries a `created` key and that is
+        # a reserved LogRecord attribute — `makeRecord` raises on the
+        # collision, turning a successful import into a 500 on its own log line.
+        logger.info(
+            "usajobs import finished",
+            extra=safe_extra({"event": "usajobs.done", **result.as_dict()}),
+        )
         return result
 
     async def _known_refs(self, source_id: UUID) -> set[str]:

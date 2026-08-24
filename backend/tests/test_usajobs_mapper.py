@@ -148,3 +148,27 @@ def test_a_row_without_an_id_is_dropped_not_raised(hourly: dict) -> None:
 def test_markup_is_stripped() -> None:
     assert clean("<p>Hello <b>there</b></p>") == "Hello there"
     assert clean(None) == ""
+
+
+def test_the_run_summary_is_safe_to_log() -> None:
+    """The summary carries a `created` key, and `created` is a reserved
+    LogRecord attribute. Passing it straight to `extra=` raises KeyError inside
+    `makeRecord` — which turns a successful import into a 500 on its own log
+    line, and only when the log level actually emits INFO.
+    """
+    import logging
+
+    from app.core.logging import safe_extra
+    from app.services.usajobs_service import ImportResult
+
+    summary = {"event": "usajobs.done", **ImportResult(fetched=9, created=3).as_dict()}
+    record = logging.getLogger("test").makeRecord(
+        "test", logging.INFO, "f", 1, "m", (), None, extra=safe_extra(summary)
+    )
+    assert record.field_created == 3
+    assert record.fetched == 9
+
+    with pytest.raises(KeyError):
+        logging.getLogger("test").makeRecord(
+            "test", logging.INFO, "f", 1, "m", (), None, extra=summary
+        )

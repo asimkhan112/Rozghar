@@ -49,6 +49,8 @@ Environment variables:
 | `SITE_URL` | your Vercel URL — **not** the Railway one |
 | `JSON_LOGS` | `true` |
 | `ANTHROPIC_API_KEY` | optional; AI endpoints return 503 without it |
+| `USAJOBS_API_KEY` | optional; the Fetch jobs button returns 503 without it |
+| `USAJOBS_USER_AGENT` | the email the USAJOBS key was registered under |
 | `REDIS_URL` | optional; add a Railway Redis and paste its internal URL |
 
 `railway.toml` supplies the start command: `alembic upgrade head` then uvicorn on
