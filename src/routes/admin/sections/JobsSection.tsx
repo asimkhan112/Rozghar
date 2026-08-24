@@ -106,7 +106,10 @@ export default function JobsSection() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [page, setPage] = useState(1)
-  const perPage = 8
+  //: The server page size, not a slice of an already-loaded array. It used to
+  //: be the latter, which quietly capped the whole table at one request's
+  //: worth of rows.
+  const perPage = 25
 
   const STATUS_TO_API: Record<string, string | undefined> = {
     Published: "published",
@@ -124,7 +127,8 @@ export default function JobsSection() {
   // The editorial view: drafts, scheduled and archived listings alongside
   // published ones. Requires JOB_VIEW_ALL, which the router enforces.
   const { data, isPending, isError, error, refetch } = useAdminJobs({
-    per_page: 50,
+    page,
+    per_page: perPage,
     status: statusFilter === "All" ? undefined : STATUS_TO_API[statusFilter],
   })
 
@@ -159,19 +163,40 @@ export default function JobsSection() {
     }
   }
 
+  /**
+   * Refinements the API cannot express.
+   *
+   * `Published`/`Draft`/`Expired` are sent to the server, so re-applying them
+   * here would be a second, weaker filter over one page. What is left is the
+   * search box and the three pills that are not lifecycle states — and those
+   * can only narrow the page in front of you, which the footer says out loud
+   * rather than letting the counts look wrong.
+   */
+  const localOnly =
+    search.trim().length > 0 || ["Featured", "Verified", "Expiring"].includes(statusFilter)
+
   const jobs = useMemo(() => {
-    const term = search.toLowerCase()
+    const term = search.trim().toLowerCase()
     return rows.filter((j) => {
       const matchSearch =
+        !term ||
         j.title.toLowerCase().includes(term) ||
         j.company.toLowerCase().includes(term)
-      const matchStatus =
-        statusFilter === "All" || j.status === statusFilter.toLowerCase()
-      return matchSearch && matchStatus
+      const matchPill =
+        statusFilter !== "Featured" && statusFilter !== "Verified"
+          ? true
+          : statusFilter === "Featured"
+            ? jobsById.get(j.id)?.featured === true
+            : jobsById.get(j.id)?.verified === true
+      return matchSearch && matchPill
     })
-  }, [rows, search, statusFilter])
+  }, [rows, search, statusFilter, jobsById])
 
-  const paginated = jobs.slice(0, page * perPage)
+  const total = data?.total ?? 0
+  const totalPages = data?.totalPages ?? 1
+  const firstOnPage = total === 0 ? 0 : (page - 1) * perPage + 1
+  const lastOnPage = Math.min(page * perPage, total)
+  const paginated = jobs
   const setSection = (section: string) =>
     navigate(`/admin/dashboard/${section}`)
 
@@ -269,6 +294,8 @@ export default function JobsSection() {
             value={search}
             onChange={(e) => {
               setSearch(e.target.value)
+              // The search reads the loaded page, so start from the first one.
+              setPage(1)
               setSuggestOpen(true)
             }}
             onFocus={() => setSuggestOpen(true)}
@@ -400,7 +427,11 @@ export default function JobsSection() {
         {STATUS_FILTERS.map((f) => (
           <button
             key={f}
-            onClick={() => setStatusFilter(f)}
+            onClick={() => {
+              setStatusFilter(f)
+              // Page 9 of the drafts is not page 9 of anything else.
+              setPage(1)
+            }}
             style={{
               padding: "5px 14px",
               ...pillTone(statusFilter === f),
@@ -421,7 +452,11 @@ export default function JobsSection() {
             alignSelf: "center",
           }}
         >
-          {isPending ? "Loading…" : `${jobs.length} results`}
+          {isPending
+            ? "Loading…"
+            : localOnly
+              ? `${jobs.length} on this page`
+              : `${total} result${total === 1 ? "" : "s"}`}
         </span>
       </div>
 
@@ -799,24 +834,40 @@ export default function JobsSection() {
           }}
         >
           <span style={{ fontSize: size.xs, color: color.text.muted }}>
-            Showing {Math.min(paginated.length, jobs.length)} of {jobs.length}
+            {total === 0
+              ? "No listings"
+              : `Showing ${firstOnPage}–${lastOnPage} of ${total}`}
+            {localOnly && ` · ${jobs.length} match this page`}
           </span>
-          {jobs.length > paginated.length && (
-            <button
-              onClick={() => setPage((p: number) => p + 1)}
-              style={{
-                fontSize: size.sm,
-                padding: "6px 16px",
-                border: `1px solid ${color.border.base}`,
-                borderRadius: radius.lg,
-                background: color.surface.base,
-                color: color.text.strong,
-                cursor: "pointer",
-                fontWeight: weight.medium,
-              }}
-            >
-              Load more
-            </button>
+          {totalPages > 1 && (
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{ fontSize: size.xs, color: color.text.muted }}>
+                Page {page} of {totalPages}
+              </span>
+              {[
+                { label: "Previous", to: page - 1, off: page <= 1 },
+                { label: "Next", to: page + 1, off: page >= totalPages },
+              ].map((control) => (
+                <button
+                  key={control.label}
+                  onClick={() => setPage(control.to)}
+                  disabled={control.off}
+                  style={{
+                    fontSize: size.sm,
+                    padding: "6px 16px",
+                    border: `1px solid ${color.border.base}`,
+                    borderRadius: radius.lg,
+                    background: color.surface.base,
+                    color: control.off ? color.text.muted : color.text.strong,
+                    cursor: control.off ? "not-allowed" : "pointer",
+                    opacity: control.off ? 0.5 : 1,
+                    fontWeight: weight.medium,
+                  }}
+                >
+                  {control.label}
+                </button>
+              ))}
+            </div>
           )}
         </div>
       </div>
