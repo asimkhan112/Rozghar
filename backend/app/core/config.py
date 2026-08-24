@@ -187,6 +187,28 @@ class Settings(BaseSettings):
     #: needs more than this in an hour is fighting the tool rather than using it.
     ai_rate_limit_per_hour: int = 40
 
+    # --- USAJOBS ingestion -----------------------------------------------
+    #: Key from developer.usajobs.gov. Absent means the fetch endpoint returns
+    #: 503, the same shape as the AI tools: a feature that is off, not broken.
+    usajobs_api_key: str = ""
+
+    #: USAJOBS requires the email the key was registered under as the
+    #: User-Agent. They use it for support and abuse tracking, so a placeholder
+    #: works for development and risks throttling at real volume.
+    usajobs_user_agent: str = "jobs@plenilo.com"
+
+    #: Occupational series to pull, semicolon-joined into JobCategoryCode.
+    #: Narrow by default: an unfiltered federal pull is tens of thousands of
+    #: listings and would bury everything entered by hand.
+    usajobs_series: str = "2210;0854;0801;1560;0343;0501;0510;0201"
+
+    #: Days back to search. The API accepts 0-60.
+    usajobs_days_posted: int = 15
+
+    #: Listings per fetch run. One page of 250 is a single request and a
+    #: reviewable number of drafts; the API's own ceiling is 500.
+    usajobs_page_size: int = 250
+
     # --- startup ---------------------------------------------------------
     #: When true, a mismatch between the Permission enum and the permissions
     #: table aborts startup. Disabled only for the migration that seeds them.

@@ -139,6 +139,26 @@ export async function updateJob(
 }
 
 /** Soft delete. The row survives — audit entries and `created_by` reference it. */
+/** The result of one USAJOBS import run. */
+export interface ImportRun {
+  fetched: number
+  created: number
+  skipped: number
+  failed: number
+  errors: string[]
+}
+
+/**
+ * Pulls open federal listings and files them as drafts.
+ *
+ * Runs to completion server-side before answering, so the timeout is generous:
+ * a page of 250 announcements is 250 inserts. Safe to call twice — anything
+ * already imported comes back under `skipped`.
+ */
+export function importUsajobs(): Promise<ImportRun> {
+  return api.post<ImportRun>('/admin/import/usajobs', {}, { timeout: 300_000 })
+}
+
 export function deleteJob(id: string): Promise<void> {
   return api.delete<void>(`/admin/jobs/${id}`)
 }

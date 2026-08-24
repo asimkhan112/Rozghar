@@ -80,6 +80,9 @@ class Job(UUIDPkMixin, TimestampMixin, SoftDeleteMixin, Base):
     source_id: Mapped[UUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("sources.id", ondelete="RESTRICT"), nullable=False
     )
+    #: The listing's id in the system it was imported from. Null for anything
+    #: entered by hand, which is why the uniqueness index below is partial.
+    source_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     # --- classification --------------------------------------------------
     work_type: Mapped[WorkType] = mapped_column(pg_enum(WorkType, "work_type"), nullable=False)
@@ -275,6 +278,15 @@ class Job(UUIDPkMixin, TimestampMixin, SoftDeleteMixin, Base):
             postgresql_where=text("status = 'published'"),
         ),
         Index("ix_jobs_source_id_published_at", "source_id", text("published_at DESC")),
+        # One row per external listing, per source. Partial so hand-entered
+        # jobs — which have no reference — never collide with each other.
+        Index(
+            "uq_jobs_source_ref",
+            "source_id",
+            "source_ref",
+            unique=True,
+            postgresql_where=text("source_ref IS NOT NULL AND deleted_at IS NULL"),
+        ),
         Index(
             "ix_jobs_company_id",
             "company_id",

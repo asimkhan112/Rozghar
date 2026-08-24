@@ -20,6 +20,7 @@ import {
   useDeleteJob,
   useExpireJob,
   useFeatureJob,
+  useImportUsajobs,
   usePublishJob,
   useVerifyJob,
 } from "@/hooks/queries"
@@ -28,6 +29,7 @@ import { ErrorPanel } from "@/components/QueryState"
 import { toAdminRow } from "../adminRow"
 import type { AdminJobRow } from "@/types/admin"
 import Icon from "@/components/Icon"
+import ShareJobModal from "@/components/ShareJobModal"
 import SearchSuggest, { type SuggestChoice, useSuggestNavigation } from "@/components/SearchSuggest"
 
 /**
@@ -40,6 +42,10 @@ export default function JobsSection() {
   const showToast = useToast()
   const navigate = useNavigate()
 
+  // The listing whose share sheet is open. Published only — the card
+  // renderer refuses drafts, deliberately, so offering it earlier would hand
+  // the editor a button that always fails.
+  const [sharingJobId, setSharingJobId] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [suggestOpen, setSuggestOpen] = useState(false)
   // The admin variant: includes drafts and expired listings, and adds sources.
@@ -67,6 +73,28 @@ export default function JobsSection() {
     onDismiss: () => setSuggestOpen(false),
   })
   const [statusFilter, setStatusFilter] = useState("All")
+
+  const importJobs = useImportUsajobs()
+
+  /**
+   * One import run, reported plainly.
+   *
+   * A second press is expected to create nothing — everything already imported
+   * is recognised and skipped — so the toast names both numbers rather than
+   * letting "0 new" read as a failure.
+   */
+  const runImport = async () => {
+    try {
+      const run = await importJobs.mutateAsync()
+      const parts = [`${run.created} new draft${run.created === 1 ? "" : "s"}`]
+      if (run.skipped) parts.push(`${run.skipped} already imported`)
+      if (run.failed) parts.push(`${run.failed} skipped`)
+      showToast(parts.join(", "))
+      if (run.created > 0) setStatusFilter("Draft")
+    } catch (err) {
+      showToast(describeError(err))
+    }
+  }
   // Ids, not row indices. Indices are positions in a filtered, paginated view
   // that shifts under the selection the moment a mutation lands — selecting
   // row 3 and then expiring it would apply the next action to whatever slid
@@ -311,6 +339,28 @@ export default function JobsSection() {
             ))}
           </div>
         )}
+        <button
+          onClick={() => void runImport()}
+          disabled={importJobs.isPending}
+          title="Pull open federal listings from USAJOBS. They arrive as drafts for you to review."
+          style={{
+            padding: "8px 16px",
+            background: color.surface.base,
+            border: `1px solid ${color.border.base}`,
+            borderRadius: radius.xl,
+            color: color.text.primary,
+            fontSize: size.sm,
+            fontWeight: weight.medium,
+            cursor: importJobs.isPending ? "wait" : "pointer",
+            opacity: importJobs.isPending ? 0.6 : 1,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <Icon name="download" size={14} />
+          {importJobs.isPending ? "Fetching…" : "Fetch jobs"}
+        </button>
         <button
           onClick={() => setSection("add-job")}
           style={{
@@ -666,6 +716,11 @@ export default function JobsSection() {
                             ...(j.status === "published"
                               ? [
                                   {
+                                    icon: "link" as const,
+                                    title: "Share",
+                                    run: async () => setSharingJobId(j.id),
+                                  },
+                                  {
                                     icon: "clock" as const,
                                     title: "Expire",
                                     run: () =>
@@ -762,6 +817,7 @@ export default function JobsSection() {
           )}
         </div>
       </div>
+      <ShareJobModal jobId={sharingJobId} onClose={() => setSharingJobId(null)} />
     </div>
   )
 }

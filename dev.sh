@@ -61,6 +61,8 @@ REDIS_URL=redis://localhost:6380/0
 SECRET_KEY=dev-only-change-me
 SITE_URL=http://localhost:8443
 ANTHROPIC_API_KEY=
+USAJOBS_API_KEY=
+USAJOBS_USER_AGENT=
 ENVFILE
 fi
 

@@ -315,6 +315,9 @@ happens to need them.
 | `SITE_URL` | `http://localhost:8443` | absolute URLs in sitemap and structured data |
 | `ANTHROPIC_API_KEY` | empty | unset ⇒ AI endpoints return `503` |
 | `AI_MODEL` | `claude-opus-5` | pinned, not `latest` |
+| `USAJOBS_API_KEY` | empty | unset ⇒ the import endpoint returns `503` |
+| `USAJOBS_USER_AGENT` | `jobs@plenilo.com` | must be the email the key was registered under |
+| `USAJOBS_SERIES` | 8 occupational series | semicolon-joined `JobCategoryCode` |
 | `SCHEDULER_ENABLED` | `true` | disable on request-only instances |
 | `CACHE_ENABLED` | `true` | "caching off" is a legitimate operational state |
 | `RATE_LIMIT_ENABLED` | `true` | off in tests |

@@ -24,6 +24,7 @@ import {
   featureJob,
   fetchAdminJob,
   fetchAdminJobs,
+  importUsajobs,
   publishJob,
   updateJob,
   verifyJob,
@@ -143,6 +144,21 @@ function useJobAction<TArgs>(
         client.setQueryData(key, data)
       }
     },
+    onSettled: () => invalidateJobWrites(client),
+  })
+}
+
+/**
+ * Imports from USAJOBS.
+ *
+ * Invalidates every job query rather than patching the cache: a run creates an
+ * unknown number of rows across pages the client has never loaded, so there is
+ * nothing meaningful to splice in.
+ */
+export function useImportUsajobs() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: importUsajobs,
     onSettled: () => invalidateJobWrites(client),
   })
 }
