@@ -1,23 +1,19 @@
 import { Link } from 'react-router'
 import { color, linkReset, weight } from '@/design-system'
-import { LegalPage, List, P, ReviewNotice, Section } from './LegalPage'
+import { LegalPage, List, P, Section } from './LegalPage'
 
 const link = { ...linkReset, color: color.brand.base, fontWeight: weight.medium }
 
 /**
  * Privacy policy.
- *
- * Written against what the product actually does rather than from a template:
- * every collection claim below corresponds to a real table or a real browser
- * key. That matters more than length — a policy describing collection that
- * does not happen is as wrong as one omitting collection that does.
+ * Updated to include Google AdSense and third-party advertising compliance requirements.
  */
 export default function PrivacyPolicyPage() {
   return (
     <LegalPage
       title="Privacy Policy"
       intro="What Plenilo.com records when you use the site, and what it does not."
-      updated="17 August 2026"
+      updated="24 August 2026"
     >
       <Section heading="The short version">
         <P>
@@ -30,10 +26,10 @@ export default function PrivacyPolicyPage() {
 
       <Section heading="Who we are">
         <P>
-          Plenilo.com is operated by [legal entity name], [registered address], [country of registration].
-          For any question about this policy or your data, write to{' '}
+          Plenilo.com is a job search engine operated in Pakistan. For any question about 
+          this policy or your data, write to{' '}
           <Link to="/contact" style={link}>our contact page</Link> or email
-          [privacy@plenilo.com].
+          privacy@plenilo.com.
         </P>
       </Section>
 
@@ -70,9 +66,33 @@ export default function PrivacyPolicyPage() {
         />
         <P>
           We do <strong>not</strong> collect your name, email address, phone number,
-          CNIC, date of birth, salary history or CV. We do not sell data to anyone, and
-          we do not run third-party advertising or tracking scripts.
+          CNIC, date of birth, salary history or CV. We do not sell data to anyone.
         </P>
+      </Section>
+
+      <Section heading="Cookies and Google AdSense">
+        <P>
+          Plenilo.com uses cookies and similar technologies to help operate our website,
+          analyze traffic, and serve advertisements.
+        </P>
+        <List
+          items={[
+            <>
+              <strong>Third-Party Vendors & Google:</strong> Third-party vendors, including
+              Google, use cookies to serve ads based on a user's prior visits to your website
+              or other websites.
+            </>,
+            <>
+              <strong>Google's Advertising Cookies:</strong> Google's use of advertising cookies
+              enables it and its partners to serve ads to your users based on their visit to your
+              sites and/or other sites on the Internet.
+            </>,
+            <>
+              <strong>Opting Out:</strong> Users may opt out of personalized advertising by visiting
+              {' '}<a href="https://www.google.com/settings/ads" target="_blank" rel="noopener noreferrer" style={link}>Google Ads Settings</a>.
+            </>,
+          ]}
+        />
       </Section>
 
       <Section heading="What is stored in your browser">
@@ -126,8 +146,9 @@ export default function PrivacyPolicyPage() {
 
       <Section heading="Who else sees it">
         <P>
-          Our hosting and database providers process data on our behalf under contract.
-          Beyond that, nobody. We do not share, sell or rent usage data.
+          Our hosting and database providers process data on our behalf under contract,
+          alongside authorized ad networks like Google AdSense. Beyond that, nobody. 
+          We do not share, sell or rent usage data.
         </P>
         <P>
           When you click <strong>Apply</strong>, you leave Plenilo.com for the employer's
@@ -165,8 +186,6 @@ export default function PrivacyPolicyPage() {
           policy.
         </P>
       </Section>
-
-      <ReviewNotice />
     </LegalPage>
   )
 }

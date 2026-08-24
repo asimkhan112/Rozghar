@@ -22,6 +22,7 @@ import ShareJobModal from '@/components/ShareJobModal'
 import AIDraftReview, { draftToFields, type DraftFields } from '@/components/AIDraftReview'
 import Icon from '@/components/Icon'
 import { CURRENCIES, CURRENCY_LABEL, SALARY_PERIODS } from '@/types/job'
+import { looksUnformatted, tidyPastedText } from '@/lib/richText'
 
 const WORK_TYPE = { 'On-site': 'on_site', Remote: 'remote', Hybrid: 'hybrid' } as const
 const EMPLOYMENT_TYPE = {
@@ -221,6 +222,38 @@ export default function AddJobSection() {
       return
     }
     showToast(describeError(err))
+  }
+
+  /**
+   * Paste from another job site, straightened out.
+   *
+   * A copied listing usually arrives as one unbroken block — the newlines are
+   * lost somewhere between the source page and the clipboard, and what lands
+   * in the field reads as a single paragraph on the published page. This puts
+   * the breaks back around section labels and bullet glyphs. It only inserts
+   * whitespace, never words, so it runs without asking; text that already has
+   * structure is left exactly as pasted.
+   */
+  const handleDescriptionPaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = event.clipboardData.getData('text/plain')
+    if (!looksUnformatted(pasted)) return
+    event.preventDefault()
+    const field = event.currentTarget
+    const before = form.description.slice(0, field.selectionStart)
+    const after = form.description.slice(field.selectionEnd)
+    up('description', `${before}${tidyPastedText(pasted)}${after}`)
+    showToast('Formatted the pasted text into sections')
+  }
+
+  /** The same tidy, on demand — for text that was already in the field. */
+  const handleTidy = () => {
+    const tidied = tidyPastedText(form.description)
+    if (tidied === form.description.trim()) {
+      showToast('Nothing to reformat')
+      return
+    }
+    up('description', tidied)
+    showToast('Reformatted the description')
   }
 
   const handleRewrite = async () => {
@@ -584,6 +617,16 @@ export default function AddJobSection() {
                 <Icon name="sparkles" size={15} />
                 {generate.isPending ? 'Writing…' : 'Generate from job details'}
               </button>
+              <button
+                type="button"
+                onClick={handleTidy}
+                disabled={!form.description.trim()}
+                title="Put section breaks and bullets back into pasted text. Changes no words."
+                style={aiButton(false)}
+              >
+                <Icon name="sparkles" size={15} />
+                Tidy formatting
+              </button>
               <span style={{ fontSize: size.xs, color: color.text.muted, alignSelf: 'center' }}>
                 You review every change before it is applied.
               </span>
@@ -604,7 +647,7 @@ export default function AddJobSection() {
                 {aiUnavailable} Writing the description by hand works exactly as before.
               </div>
             ) : null}
-            <FRow><FField label="Description *"><textarea value={form.description} onChange={e => up('description', e.target.value)} placeholder="Describe the role, team, and company…" rows={5} style={{ ...IS, resize: 'vertical' }} />
+            <FRow><FField label="Description *"><textarea value={form.description} onChange={e => up('description', e.target.value)} onPaste={handleDescriptionPaste} placeholder="Describe the role, team, and company…" rows={8} style={{ ...IS, resize: 'vertical', lineHeight: 1.6 }} />
               <CharacterCount value={form.description} min={50} max={20000} />
               <FieldError message={errorFor('description')} />
             </FField></FRow>

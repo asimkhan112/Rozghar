@@ -22,6 +22,7 @@ import { trackApplyClick, trackJobSaved, trackJobView } from "@/lib/analytics"
 import NotFoundPage from "@/routes/NotFoundPage"
 import Icon, { IconBadge } from "@/components/Icon"
 import SiteFooter from "@/components/SiteFooter"
+import RichText from "@/components/RichText"
 import { usePageMeta } from "@/lib/seo"
 
 export default function JobDetailPage() {
@@ -89,6 +90,14 @@ export default function JobDetailPage() {
 
   const logoColor = logoPalette[job.logoPalette]
   const related = data?.related ?? []
+
+  // A listing that never filled these in should show no card at all — a
+  // heading over empty space reads as a page that failed to load, not as an
+  // employer who left the field blank. Blank strings are dropped too: an
+  // array holding one empty item is still nothing to show.
+  const responsibilities = job.responsibilities.filter((r) => r.trim())
+  const requirements = job.requirements.filter((r) => r.trim())
+  const benefits = job.benefits.filter((b) => b.trim())
 
   const handleApply = () => {
     setApplied(true)
@@ -499,123 +508,125 @@ export default function JobDetailPage() {
           </div>
 
           {/* Description */}
-          <ContentSection title="About the Role">
-            <p
-              style={{
-                fontSize: size.md,
-                color: color.text.strong,
-                lineHeight: 1.7,
-                margin: 0,
-              }}
-            >
-              {job.description}
-            </p>
-          </ContentSection>
+          {job.description.trim() && (
+            <ContentSection title="About the Role">
+              {/* Parsed, not printed: the description is plain text carrying its
+                  own headings and bullets, and a bare <p> collapses all of it
+                  into one paragraph. */}
+              <RichText text={job.description} />
+            </ContentSection>
+          )}
 
-          <ContentSection title="Responsibilities">
-            <ul
-              style={{
-                margin: 0,
-                paddingLeft: 0,
-                listStyle: "none",
-                display: "flex",
-                flexDirection: "column",
-                gap: 10,
-              }}
-            >
-              {job.responsibilities.map((r, i) => (
-                <li
-                  key={i}
-                  style={{
-                    display: "flex",
-                    gap: 12,
-                    alignItems: "flex-start",
-                    fontSize: size.md,
-                    color: color.text.strong,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  <span
+          {responsibilities.length > 0 && (
+            <ContentSection title="Responsibilities">
+              <ul
+                style={{
+                  margin: 0,
+                  paddingLeft: 0,
+                  listStyle: "none",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                }}
+              >
+                {responsibilities.map((r, i) => (
+                  <li
+                    key={i}
                     style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: radius.full,
-                      background: color.brand.base,
-                      flexShrink: 0,
-                      marginTop: 8,
+                      display: "flex",
+                      gap: 12,
+                      alignItems: "flex-start",
+                      fontSize: size.md,
+                      color: color.text.strong,
+                      lineHeight: 1.5,
                     }}
-                  />
-                  {r}
-                </li>
-              ))}
-            </ul>
-          </ContentSection>
-
-          <ContentSection title="Requirements">
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {job.requirements.map((r, i) => (
-                <span
-                  key={i}
-                  style={{
-                    fontSize: size.sm,
-                    padding: "6px 12px",
-                    borderRadius: radius.xl,
-                    background: color.surface.canvas,
-                    border: `1px solid ${color.border.base}`,
-                    color: color.text.strong,
-                    fontWeight: weight.medium,
-                  }}
-                >
-                  {r}
-                </span>
-              ))}
-            </div>
-          </ContentSection>
-
-          <ContentSection title="Benefits & Perks">
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-                gap: 10,
-              }}
-            >
-              {job.benefits.map((b, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "10px 14px",
-                    background: color.brand.tint,
-                    borderRadius: radius.xl,
-                    border: `1px solid ${color.brand.alpha20}`,
-                  }}
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke={color.brand.base}
-                    strokeWidth="2.5"
                   >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
+                    <span
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: radius.full,
+                        background: color.brand.base,
+                        flexShrink: 0,
+                        marginTop: 8,
+                      }}
+                    />
+                    {r}
+                  </li>
+                ))}
+              </ul>
+            </ContentSection>
+          )}
+
+          {requirements.length > 0 && (
+            <ContentSection title="Requirements">
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {requirements.map((r, i) => (
                   <span
+                    key={i}
                     style={{
                       fontSize: size.sm,
+                      padding: "6px 12px",
+                      borderRadius: radius.xl,
+                      background: color.surface.canvas,
+                      border: `1px solid ${color.border.base}`,
                       color: color.text.strong,
                       fontWeight: weight.medium,
                     }}
                   >
-                    {b}
+                    {r}
                   </span>
-                </div>
-              ))}
-            </div>
-          </ContentSection>
+                ))}
+              </div>
+            </ContentSection>
+          )}
+
+          {benefits.length > 0 && (
+            <ContentSection title="Benefits & Perks">
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                  gap: 10,
+                }}
+              >
+                {benefits.map((b, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "10px 14px",
+                      background: color.brand.tint,
+                      borderRadius: radius.xl,
+                      border: `1px solid ${color.brand.alpha20}`,
+                    }}
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke={color.brand.base}
+                      strokeWidth="2.5"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    <span
+                      style={{
+                        fontSize: size.sm,
+                        color: color.text.strong,
+                        fontWeight: weight.medium,
+                      }}
+                    >
+                      {b}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </ContentSection>
+          )}
         </div>
 
         {/* Sidebar */}

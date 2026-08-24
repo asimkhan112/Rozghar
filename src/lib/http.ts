@@ -214,6 +214,11 @@ export function describeError(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 429)
       return error.problem.detail ?? "Too many requests. Please slow down."
+    // 503 is the one 5xx the server raises deliberately, and it always says
+    // *why* — a feature that is switched off rather than broken. Replacing
+    // that with "try again" sends the reader into a loop retrying a
+    // configuration problem.
+    if (error.status === 503 && error.problem.detail) return error.problem.detail
     if (error.status >= 500)
       return "Something went wrong on our side. Please try again."
     return error.problem.detail ?? error.problem.title

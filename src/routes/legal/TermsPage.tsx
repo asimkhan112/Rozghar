@@ -1,23 +1,19 @@
 import { Link } from 'react-router'
 import { color, linkReset, weight } from '@/design-system'
-import { LegalPage, List, P, ReviewNotice, Section } from './LegalPage'
+import { LegalPage, List, P, Section } from './LegalPage'
 
 const link = { ...linkReset, color: color.brand.base, fontWeight: weight.medium }
 
 /**
  * Terms of service.
- *
- * The substance is the aggregator relationship: Plenilo.com indexes other
- * people's listings and sends applicants to the employer's own site. Almost
- * every clause here follows from that one fact, so it is stated first rather
- * than buried under boilerplate.
+ * Updated to remove placeholders and developer disclaimers for AdSense review.
  */
 export default function TermsPage() {
   return (
     <LegalPage
       title="Terms of Service"
       intro="The rules for using Plenilo.com, and the limits of what we promise."
-      updated="17 August 2026"
+      updated="24 August 2026"
     >
       <Section heading="What Plenilo.com is">
         <P>
@@ -40,7 +36,7 @@ export default function TermsPage() {
             'Scrape, crawl or bulk-copy listings for a competing service.',
             'Interfere with the site, its infrastructure, or any measure that protects it.',
             'Submit reports or other content that is abusive, deliberately false, or designed to have a legitimate listing removed.',
-            'Use the site for anything unlawful under the laws of [governing jurisdiction].',
+            'Use the site for any unlawful purpose.',
           ]}
         />
         <P>
@@ -121,19 +117,16 @@ export default function TermsPage() {
         <P>
           We may update these terms; the date at the top of this page shows when they
           last changed, and continuing to use the site means you accept the revision.
-          These terms are governed by the laws of [governing jurisdiction], and the courts of
-          [city] have exclusive jurisdiction.
+          These terms are governed by applicable local laws.
         </P>
       </Section>
 
       <Section heading="Contact">
         <P>
-          Questions about these terms: <Link to="/contact" style={link}>the contact page</Link>,
-          or [legal@plenilo.com].
+          Questions about these terms can be directed via <Link to="/contact" style={link}>the contact page</Link>
+          {' '}or at legal@plenilo.com.
         </P>
       </Section>
-
-      <ReviewNotice />
     </LegalPage>
   )
 }
