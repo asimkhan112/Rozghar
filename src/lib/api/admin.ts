@@ -41,7 +41,7 @@ export interface AdminJobQuery {
  *
  * Reuses the public adapter for everything it renders in common, then adds the
  * fields the admin table needs. `version` rides along so a later PATCH can send
- * `If-Match` and be told about a concurrent edit rather than clobbering it.
+ * `X-Expected-Version` and be told about a concurrent edit rather than clobbering it.
  */
 export interface AdminJob extends Job {
   /** Foreign keys the edit form needs to preselect its dropdowns. The display
@@ -120,11 +120,17 @@ export async function createJob(body: JobWriteDto): Promise<AdminJob> {
 }
 
 /**
- * `If-Match` carries the version last read.
+ * `X-Expected-Version` carries the version last read.
  *
  * The backend rejects the write when it has moved on, so two editors on the
  * same listing get a conflict they can resolve instead of one silently
  * overwriting the other's work.
+ *
+ * Not `If-Match`, which is what this used to send. That is a standard
+ * conditional header, so a cache in front of the API may evaluate it against an
+ * entity-tag of its own and return `412` without ever forwarding the request —
+ * which is what Vercel's edge did to every update from the deployed admin. A
+ * custom header carries no HTTP semantics for anything in between to act on.
  */
 export async function updateJob(
   id: string,
@@ -133,7 +139,7 @@ export async function updateJob(
 ): Promise<AdminJob> {
   return toAdminJob(
     await api.patch<JobAdminDto>(`/admin/jobs/${id}`, changes, {
-      headers: version === undefined ? undefined : { 'If-Match': String(version) },
+      headers: version === undefined ? undefined : { 'X-Expected-Version': String(version) },
     }),
   )
 }

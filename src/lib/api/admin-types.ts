@@ -20,7 +20,7 @@ export interface JobAdminDto extends JobDetailDto {
   save_count: number
   created_by: string
   updated_by: string | null
-  /** Incremented on every write. Sent back as `If-Match` to detect a
+  /** Incremented on every write. Sent back as `X-Expected-Version` to detect a
    * concurrent edit rather than silently overwriting one. */
   version: number
   created_at: string

@@ -120,7 +120,7 @@ async def create_job(
     "/{job_id}",
     response_model=JobAdmin,
     summary="Partially update a listing",
-    responses={409: {"description": "If-Match version mismatch"}},
+    responses={409: {"description": "X-Expected-Version mismatch"}},
 )
 async def update_job(
     job_id: UUID,
@@ -128,10 +128,21 @@ async def update_job(
     request: Request,
     service: ServiceDep,
     principal: Annotated[Principal, Depends(require(Permission.JOB_EDIT))],
+    expected_version: Annotated[int | None, Header(alias="X-Expected-Version")] = None,
     if_match: Annotated[int | None, Header(alias="If-Match")] = None,
 ) -> JobAdmin:
-    """`If-Match` carries the version last read. When supplied, a concurrent
-    edit is rejected rather than silently overwritten."""
+    """The version last read, so a concurrent edit is rejected rather than
+    silently overwritten.
+
+    Carried in `X-Expected-Version` rather than `If-Match`. `If-Match` is a
+    standard conditional header, which means any cache between the browser and
+    this process is entitled to evaluate it against an entity-tag of its own and
+    answer `412 Precondition Failed` without forwarding the request — which is
+    what Vercel's edge did to every update from the deployed admin, while
+    localhost worked because nothing sat in between. A bare version number is
+    not a valid entity-tag either.
+
+    `If-Match` is still read, so an existing API client does not break."""
     changes = payload.model_dump(exclude_unset=True)
     for url_field in ("apply_url", "company_logo", "company_website"):
         if changes.get(url_field) is not None:
@@ -141,7 +152,7 @@ async def update_job(
         job_id,
         changes,
         principal=principal,
-        expected_version=if_match,
+        expected_version=expected_version if expected_version is not None else if_match,
         ip_hash=_ip(request),
     )
     await service.session.commit()

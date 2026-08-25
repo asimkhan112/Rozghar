@@ -356,7 +356,7 @@ export default function AddJobSection() {
         // fields are invalid". Publishing is a separate audited action, so the
         // publishing mode is applied below rather than as a column here.
         const { status: _status, ...changes } = body
-        // `If-Match` carries the version last read, so a concurrent edit is
+        // `X-Expected-Version` carries the version last read, so a concurrent edit is
         // rejected rather than silently overwritten.
         const updated = await updateJob.mutateAsync({
           id: editId,
