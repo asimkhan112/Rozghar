@@ -77,6 +77,14 @@ _GRADE_BANDS = (
     (15, ExperienceLevel.LEAD),
 )
 
+#: The API's own limits on a bullet list, mirrored here because the importer
+#: writes through the service rather than the request schema — nothing would
+#: otherwise stop it storing a listing that `JobUpdate` refuses, leaving a job
+#: that can be imported and then never published.
+#: Kept in step with `ShortText` and `BulletList` in `schemas/`.
+MAX_BULLET_CHARS = 300
+MAX_BULLETS = 30
+
 _TAG = re.compile(r"<[^>]+>")
 _WS = re.compile(r"[ \t]+")
 
@@ -255,11 +263,15 @@ def _duties(details: dict[str, Any]) -> tuple[list[str], str]:
     entries = [entry for entry in entries if entry]
     if not entries:
         return [], ""
-    if len(entries) == 1 and len(entries[0]) > 400:
-        return [], entries[0]
-    bullets = [entry for entry in entries if len(entry) <= 400]
-    prose = "\n\n".join(entry for entry in entries if len(entry) > 400)
-    return bullets, prose
+    bullets = [entry for entry in entries if len(entry) <= MAX_BULLET_CHARS]
+    # Too long to be a bullet the API will accept, so it becomes prose rather
+    # than being truncated — a duty cut off mid-sentence is worse than one read
+    # as a paragraph.
+    overflow = [entry for entry in entries if len(entry) > MAX_BULLET_CHARS]
+    if len(bullets) > MAX_BULLETS:
+        overflow.extend(bullets[MAX_BULLETS:])
+        bullets = bullets[:MAX_BULLETS]
+    return bullets, "\n\n".join(overflow)
 
 
 def apply_url(descriptor: dict[str, Any]) -> str:
@@ -332,6 +344,7 @@ def map_announcement(descriptor: dict[str, Any]) -> MappedJob | None:
     )
 
     requirements = [clean(item) for item in details.get("KeyRequirements") or []]
+    requirements = [item for item in requirements if 0 < len(item) <= MAX_BULLET_CHARS]
     data: dict[str, Any] = {
         "title": title,
         "company_name": (employer or "U.S. Federal Government")[:160],
@@ -341,7 +354,7 @@ def map_announcement(descriptor: dict[str, Any]) -> MappedJob | None:
         "experience_level": experience_level(details),
         "description": description,
         "responsibilities": bullets,
-        "requirements": [item for item in requirements if item][:20],
+        "requirements": requirements[:MAX_BULLETS],
         "benefits": [],
         "apply_url": url,
         "expiry_date": parse_date(descriptor.get("ApplicationCloseDate")),

@@ -351,14 +351,39 @@ export default function AddJobSection() {
 
     try {
       if (editId) {
+        // `status` is not a field on the update schema, and the schema forbids
+        // unknown ones — sending it rejected every edit with "one or more
+        // fields are invalid". Publishing is a separate audited action, so the
+        // publishing mode is applied below rather than as a column here.
+        const { status: _status, ...changes } = body
         // `If-Match` carries the version last read, so a concurrent edit is
         // rejected rather than silently overwritten.
         const updated = await updateJob.mutateAsync({
           id: editId,
-          changes: body,
+          changes,
           version: existing.data?.version,
         })
-        showToast(`Saved changes to \u201c${updated.title}\u201d`)
+
+        const live = existing.data?.status === 'published'
+        if (form.publishMode === 'publish' && !live) {
+          await publishJob.mutateAsync({ id: editId })
+          showToast(`Published \u201c${updated.title}\u201d`)
+          // The share sheet, same as publishing a new listing — this is the
+          // moment an editor wants the caption and the card.
+          setPublishedJobId(editId)
+          return
+        }
+        if (form.publishMode === 'schedule' && form.expiry && !live) {
+          await publishJob.mutateAsync({ id: editId, scheduledAt: form.expiry })
+          showToast(`Scheduled \u201c${updated.title}\u201d`)
+          navigate('/admin/dashboard/jobs')
+          return
+        }
+        showToast(
+          form.publishMode === 'draft' && live
+            ? `Saved changes. \u201c${updated.title}\u201d is still live — expire it from the jobs list to take it down.`
+            : `Saved changes to \u201c${updated.title}\u201d`,
+        )
         navigate('/admin/dashboard/jobs')
         return
       }

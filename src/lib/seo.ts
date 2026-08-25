@@ -3,7 +3,7 @@
  *
  * A single-page app never reloads the document, so the `<title>` baked into
  * `index.html` is the title of every route unless something changes it. That is
- * how a tab reading "Plenilo.com — Find Jobs Worldwide" ends up sitting on a
+ * how a tab reading "Plenilo.com - Find Jobs Worldwide" ends up sitting on a
  * job listing: the tab strip, the history menu and a bookmark all describe the
  * homepage no matter where the reader actually is.
  *
