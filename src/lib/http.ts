@@ -135,10 +135,17 @@ function toProblem(error: AxiosError): Problem {
   const body = error.response?.data
   if (body && typeof body === "object" && "title" in body)
     return body as Problem
+
+  // Not our API answering: a proxy error page, a gateway timeout, an HTML
+  // body. `statusText` is always empty over HTTP/2, so relying on it left
+  // every one of these reading "Request failed" with the one useful fact —
+  // the status — discarded.
+  const status = error.response?.status ?? 0
   return {
     type: "about:blank",
-    title: error.response?.statusText || "Request failed",
-    status: error.response?.status ?? 0,
+    title: error.response?.statusText || `Request failed (${status || "no response"})`,
+    status,
+    detail: typeof body === "string" && body.trim() ? body.slice(0, 300) : undefined,
   }
 }
 
@@ -212,6 +219,21 @@ export const api = {
  */
 export function describeError(error: unknown): string {
   if (error instanceof ApiError) {
+    // A rejected field is the whole point of a 422, and "One or more fields
+    // are invalid" names none of them. The form highlights them too, but the
+    // fields it cannot show — an immutable one, an unknown one — would
+    // otherwise leave the reader with nothing to act on.
+    const fields = Object.entries(error.fieldErrors)
+    if (error.status === 422 && fields.length > 0) {
+      const named = fields
+        .slice(0, 3)
+        .map(([field, messages]) => `${field}: ${messages[0] ?? "invalid"}`)
+        .join("; ")
+      const rest = fields.length > 3 ? ` (and ${fields.length - 3} more)` : ""
+      return `${named}${rest}`
+    }
+    if (error.status === 401)
+      return error.problem.detail ?? "Your session has expired. Sign in again."
     if (error.status === 429)
       return error.problem.detail ?? "Too many requests. Please slow down."
     // 503 is the one 5xx the server raises deliberately, and it always says
