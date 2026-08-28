@@ -35,6 +35,7 @@ import { IconBadge } from "@/components/Icon"
 import SearchSuggest, { type SuggestChoice, useSuggestNavigation } from "@/components/SearchSuggest"
 import SiteFooter from "@/components/SiteFooter"
 import { usePageMeta } from "@/lib/seo"
+import { STATIC_PAGE_META } from "@/lib/pageMeta"
 
 /**
  * What this result set is called.
@@ -72,9 +73,12 @@ export default function JobsPage() {
   const suggest = useSuggest(filters.q)
 
   usePageMeta({
+    ...STATIC_PAGE_META["/jobs"],
+    // The heading follows the active filters, so it is composed here rather
+    // than taken from the shared map. The prerenderer, which never sees the
+    // query string, uses the map's plain title — which is also the one that
+    // ends up canonical.
     title: browseTitle(filters),
-    description:
-      "Search live job openings by keyword, category, location, work type and experience level. Every listing links straight to the employer — no account needed.",
   })
 
   /** On this page a suggestion sets a filter rather than navigating away —

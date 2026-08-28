@@ -290,6 +290,11 @@ def _filters_to_dict(filters: JobFilters) -> dict:
     payload = {
         "category": filters.category_slug,
         "location": filters.location_slug,
+        # Must stay listed: this dict is the cache key, so a filter missing
+        # from it is a filter two different result sets can collide on —
+        # "engineer" in Pakistan would be served the cached "engineer" in the
+        # United States.
+        "country": filters.country,
         "work_type": filters.work_type,
         "employment_type": filters.employment_type,
         "experience": filters.experience_level,

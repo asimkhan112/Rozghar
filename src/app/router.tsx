@@ -10,6 +10,7 @@ import CategoriesPage from '@/routes/CategoriesPage'
 import AboutPage from '@/routes/AboutPage'
 import ContactPage from '@/routes/ContactPage'
 import NotFoundPage from '@/routes/NotFoundPage'
+import LandingPage from '@/routes/LandingPage'
 import RouteErrorBoundary from '@/routes/RouteErrorBoundary'
 
 import RequireAuth from '@/routes/admin/RequireAuth'
@@ -57,6 +58,22 @@ export const router = createBrowserRouter(
         { path: '/contact', element: <ContactPage /> },
         { path: '/privacy', element: <PrivacyPolicyPage /> },
         { path: '/terms', element: <TermsPage /> },
+
+        /**
+         * Keyword landing pages: `/remote-jobs`, `/jobs-in-pakistan`,
+         * `/design-creative-jobs`. One dynamic route rather than a generated
+         * list, because the categories and locations behind them come from the
+         * API and change without a deploy — see `lib/landingPages.ts` for the
+         * URL grammar and `LandingPage` for what happens to a slug that does
+         * not name anything.
+         *
+         * Placement is not load-bearing but the ranking is: React Router scores
+         * a static segment above a dynamic one regardless of declaration order,
+         * so `/about`, `/jobs` and the rest above still win against `/:slug`.
+         * `/remote-jobs` is not declared separately for the same reason it does
+         * not need to be — `resolveLanding` recognises it.
+         */
+        { path: '/:landingSlug', element: <LandingPage /> },
 
         { path: '/admin/login', element: <AdminSignInPage /> },
         {

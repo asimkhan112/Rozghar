@@ -35,6 +35,11 @@ class JobFilters:
 
     category_slug: str | None = None
     location_slug: str | None = None
+    #: ISO 3166-1 alpha-2, matched against the listing's location. Broader than
+    #: `location_slug`, which names one city: this is what answers "jobs in
+    #: Pakistan" without enumerating every Pakistani city in the taxonomy, and
+    #: it is the filter the country landing pages are built on.
+    country: str | None = None
     work_type: WorkType | None = None
     employment_type: EmploymentType | None = None
     experience_level: ExperienceLevel | None = None
@@ -46,6 +51,15 @@ class JobFilters:
     #: page keeps ids in local storage and needs them resolved in one request
     #: rather than one request per saved listing.
     ids: tuple[UUID, ...] | None = None
+
+
+@dataclass(frozen=True)
+class FacetCounts:
+    """Live listing counts per landing-page facet, keyed by slug or country code."""
+
+    categories: dict[str, int]
+    locations: dict[str, int]
+    countries: dict[str, int]
 
 
 @dataclass(frozen=True)
@@ -86,10 +100,16 @@ class JobRepository(BaseRepository[Job]):
             stmt = stmt.join(Category, Job.category_id == Category.id).where(
                 Category.slug == filters.category_slug
             )
-        if filters.location_slug:
-            stmt = stmt.join(Location, Job.location_id == Location.id).where(
-                Location.slug == filters.location_slug
-            )
+        # One join for both location filters. Joining per-filter would emit
+        # `Location` twice when a country and a city are combined, which
+        # SQLAlchemy renders as an ambiguous self-cross-product rather than the
+        # conjunction that was meant.
+        if filters.location_slug or filters.country:
+            stmt = stmt.join(Location, Job.location_id == Location.id)
+            if filters.location_slug:
+                stmt = stmt.where(Location.slug == filters.location_slug)
+            if filters.country:
+                stmt = stmt.where(Location.country == filters.country.upper())
         if filters.work_type is not None:
             stmt = stmt.where(Job.work_type == filters.work_type)
         if filters.employment_type is not None:
@@ -186,6 +206,48 @@ class JobRepository(BaseRepository[Job]):
             .limit(limit)
         )
         return [(row[0], row[1]) for row in (await self.session.execute(stmt)).all()]
+
+    async def published_facet_counts(self) -> "FacetCounts":
+        """How many live listings sit behind each landing page.
+
+        The sitemap uses this to decide which landing pages are worth
+        submitting. It counts rather than reading `Category.job_count` and
+        `Location.job_count` deliberately: those are denormalised counters
+        maintained by `adjust_job_count`, and a counter that has drifted — by a
+        failed decrement, a restored listing, a direct edit — would put an
+        empty page into the sitemap or keep a full one out. A sitemap is read
+        by search engines as an assertion about what is worth crawling, so it
+        is worth three aggregate queries to make the assertion true.
+
+        Counted over published, undeleted listings only, which is exactly the
+        set the landing page itself will show.
+        """
+        live = (Job.status == JobStatus.PUBLISHED, Job.deleted_at.is_(None))
+
+        by_category = (
+            select(Category.slug, func.count(Job.id))
+            .join(Job, Job.category_id == Category.id)
+            .where(*live)
+            .group_by(Category.slug)
+        )
+        by_location = (
+            select(Location.slug, func.count(Job.id))
+            .join(Job, Job.location_id == Location.id)
+            .where(*live)
+            .group_by(Location.slug)
+        )
+        by_country = (
+            select(Location.country, func.count(Job.id))
+            .join(Job, Job.location_id == Location.id)
+            .where(*live, Location.country.is_not(None))
+            .group_by(Location.country)
+        )
+
+        return FacetCounts(
+            categories={row[0]: row[1] for row in (await self.session.execute(by_category)).all()},
+            locations={row[0]: row[1] for row in (await self.session.execute(by_location)).all()},
+            countries={row[0]: row[1] for row in (await self.session.execute(by_country)).all()},
+        )
 
     async def list_related(self, job: Job, *, limit: int = 3) -> list[Job]:
         """Same category or same work type, newest first."""

@@ -1,6 +1,7 @@
 import { Link } from 'react-router'
 import { color, linkReset, weight } from '@/design-system'
 import { LegalPage, List, P, Section } from './LegalPage'
+import { STATIC_PAGE_META } from '@/lib/pageMeta'
 
 const link = { ...linkReset, color: color.brand.base, fontWeight: weight.medium }
 
@@ -11,8 +12,8 @@ const link = { ...linkReset, color: color.brand.base, fontWeight: weight.medium 
 export default function PrivacyPolicyPage() {
   return (
     <LegalPage
-      title="Privacy Policy"
-      intro="What Plenilo.com records when you use the site, and what it does not."
+      title={STATIC_PAGE_META['/privacy'].title}
+      intro={STATIC_PAGE_META['/privacy'].description}
       updated="24 August 2026"
     >
       <Section heading="The short version">

@@ -56,6 +56,16 @@ async def list_jobs(
     ] = None,
     category: Annotated[str | None, Query(max_length=160)] = None,
     location: Annotated[str | None, Query(max_length=160)] = None,
+    country: Annotated[
+        str | None,
+        Query(
+            min_length=2,
+            max_length=2,
+            pattern="^[A-Za-z]{2}$",
+            description="ISO 3166-1 alpha-2, e.g. PK. Broader than `location`, "
+            "which names a single city.",
+        ),
+    ] = None,
     work_type: WorkType | None = None,
     employment_type: EmploymentType | None = None,
     experience: ExperienceLevel | None = None,
@@ -77,6 +87,7 @@ async def list_jobs(
     filters = JobFilters(
         category_slug=category,
         location_slug=location,
+        country=country,
         work_type=work_type,
         employment_type=employment_type,
         experience_level=experience,

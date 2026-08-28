@@ -4,6 +4,7 @@ import { color, linkReset, radius, size, tracking, weight } from '@/design-syste
 import { IconBadge } from '@/components/Icon'
 import SiteFooter from '@/components/SiteFooter'
 import { usePageMeta } from '@/lib/seo'
+import { STATIC_PAGE_META } from '@/lib/pageMeta'
 
 /** Trust claims already made on the homepage, restated as the about copy. */
 const PRINCIPLES = [
@@ -14,11 +15,7 @@ const PRINCIPLES = [
 ] as const
 
 export default function AboutPage() {
-  usePageMeta({
-    title: 'About Us',
-    description:
-      'Why Plenilo.com exists: one honest search across company career pages, job boards and government portals, with expired listings taken down rather than left up.',
-  })
+  usePageMeta(STATIC_PAGE_META['/about'])
 
   return (
     <div style={{ minHeight: '100vh', background: color.surface.canvas }}>

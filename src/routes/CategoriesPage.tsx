@@ -14,6 +14,7 @@ import {
 import { categoryIcon, IconBadge } from "@/components/Icon"
 import SiteFooter from "@/components/SiteFooter"
 import { usePageMeta } from "@/lib/seo"
+import { STATIC_PAGE_META } from "@/lib/pageMeta"
 
 /**
  * Category index.
@@ -26,11 +27,7 @@ export default function CategoriesPage() {
   const { data, isPending, isError, error, refetch } = useCategories()
   const categories = data ?? []
 
-  usePageMeta({
-    title: "Job Categories",
-    description:
-      "Every field hiring on Plenilo.com — technology, design, finance, marketing, government and more — with a live count of open roles in each.",
-  })
+  usePageMeta(STATIC_PAGE_META["/categories"])
 
   return (
     <div style={{ minHeight: "100vh", background: color.surface.canvas }}>

@@ -1,6 +1,7 @@
 import { Link } from 'react-router'
 import { color, linkReset, weight } from '@/design-system'
 import { LegalPage, List, P, Section } from './LegalPage'
+import { STATIC_PAGE_META } from '@/lib/pageMeta'
 
 const link = { ...linkReset, color: color.brand.base, fontWeight: weight.medium }
 
@@ -11,8 +12,8 @@ const link = { ...linkReset, color: color.brand.base, fontWeight: weight.medium 
 export default function TermsPage() {
   return (
     <LegalPage
-      title="Terms of Service"
-      intro="The rules for using Plenilo.com, and the limits of what we promise."
+      title={STATIC_PAGE_META['/terms'].title}
+      intro={STATIC_PAGE_META['/terms'].description}
       updated="24 August 2026"
     >
       <Section heading="What Plenilo.com is">

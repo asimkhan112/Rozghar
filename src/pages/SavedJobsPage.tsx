@@ -16,6 +16,7 @@ import { ErrorPanel, JobGridSkeleton } from "@/components/QueryState"
 import { IconBadge } from "@/components/Icon"
 import SiteFooter from "@/components/SiteFooter"
 import { usePageMeta } from "@/lib/seo"
+import { STATIC_PAGE_META } from "@/lib/pageMeta"
 
 export default function SavedJobsPage() {
   const savedIds = useSavedIds()
@@ -32,9 +33,14 @@ export default function SavedJobsPage() {
   // The count rides in the title the way an unread badge does: this list is
   // the one page a reader leaves open in a background tab.
   usePageMeta({
-    title: savedIds.length > 0 ? `Saved Jobs (${savedIds.length})` : "Saved Jobs",
-    description:
-      "The jobs you bookmarked on Plenilo.com, kept in this browser. No account, no sync, nothing stored on our servers.",
+    ...STATIC_PAGE_META["/saved-jobs"],
+    // The count is the one part that cannot live in the shared map: it is
+    // read from this browser's storage, so the prerenderer has no way to know
+    // it and must fall back to the plain title.
+    title:
+      savedIds.length > 0
+        ? `${STATIC_PAGE_META["/saved-jobs"].title} (${savedIds.length})`
+        : STATIC_PAGE_META["/saved-jobs"].title,
   })
 
   return (

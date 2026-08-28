@@ -4,6 +4,7 @@ import { color, linkReset, radius, size, weight } from '@/design-system'
 import { IconBadge } from '@/components/Icon'
 import SiteFooter from '@/components/SiteFooter'
 import { usePageMeta } from '@/lib/seo'
+import { NOT_FOUND_META } from '@/lib/pageMeta'
 
 /**
  * 404 surface.
@@ -13,10 +14,7 @@ import { usePageMeta } from '@/lib/seo'
  * introduces no new visual language.
  */
 export default function NotFoundPage() {
-  usePageMeta({
-    title: 'Page Not Found',
-    description: 'This page may have moved, or the job listing has expired and been removed.',
-  })
+  usePageMeta(NOT_FOUND_META)
 
   return (
     <div style={{ minHeight: '100vh', background: color.surface.canvas }}>

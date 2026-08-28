@@ -22,6 +22,9 @@ export interface JobQuery {
   q?: string
   category?: string
   location?: string
+  /** ISO 3166-1 alpha-2. Broader than `location`, which names a single city —
+   *  this is what the country landing pages (`/jobs-in-pakistan`) filter on. */
+  country?: string
   work_type?: "remote" | "on_site" | "hybrid"
   employment_type?: "full_time" | "part_time" | "contract" | "internship"
   experience?: "intern" | "entry" | "mid" | "senior" | "lead" | "executive"

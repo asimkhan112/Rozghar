@@ -48,14 +48,38 @@ export const config: VercelConfig = {
   framework: 'vite',
 
   rewrites: [
-    // The API and the two crawler endpoints, which the backend serves.
-    routes.rewrite('/api/(.*)', `${API_ORIGIN}/api/$1`),
+    // The API. Scoped to `/api/v1` rather than all of `/api` because
+    // `api/prerender.ts` is itself served from this deployment at
+    // `/api/prerender`, and a rule covering the whole prefix would leave the
+    // two competing — resolvable only by the filesystem-precedence rule above,
+    // which is far too subtle a thing for the site's entire HTML delivery to
+    // rest on. `/api/v1` is the backend's complete browser-facing surface
+    // (`settings.api_v1_prefix`, and `API_BASE` in `src/lib/http.ts`), so
+    // narrowing costs nothing and makes the two disjoint by construction.
+    routes.rewrite('/api/v1/(.*)', `${API_ORIGIN}/api/v1/$1`),
+
+    // The two crawler endpoints, which the backend serves so their content can
+    // reflect the live catalogue and the deployment environment.
     routes.rewrite('/sitemap.xml', `${API_ORIGIN}/sitemap.xml`),
     routes.rewrite('/robots.txt', `${API_ORIGIN}/robots.txt`),
 
-    // Single-page-app fallback, last so it cannot shadow the rules above.
-    // Without it, reloading /jobs/some-slug returns a Vercel 404: only
-    // index.html exists on disk, and React Router never sees the path.
-    routes.rewrite('/(.*)', '/index.html'),
+    // Every page request. This replaces what used to be a plain rewrite to
+    // `/index.html`: the shell is one file with one title and an empty
+    // `<div id="root">`, so serving it directly meant every URL on the site
+    // returned a document describing the homepage and containing no listing.
+    // `api/prerender.ts` fetches that same shell and writes the page's real
+    // title, description, Open Graph tags and JSON-LD into its head first.
+    //
+    // The path travels as a query parameter because a rewrite does not
+    // reliably preserve the requested path in the function's own `req.url`.
+    // The original query string is not forwarded and does not need to be: the
+    // canonical URL drops it by policy (`siteMeta.ts`), and the browser's
+    // address bar is untouched, so React Router still reads the filters from
+    // `window.location` exactly as before.
+    //
+    // Static assets never reach here — the filesystem is resolved first, which
+    // is what keeps `/assets/*`, the icons, and the `/index.html` the function
+    // itself fetches out of this rule.
+    routes.rewrite('/(.*)', '/api/prerender?path=/$1'),
   ],
 }

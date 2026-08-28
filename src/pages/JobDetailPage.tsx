@@ -23,7 +23,7 @@ import NotFoundPage from "@/routes/NotFoundPage"
 import Icon, { IconBadge } from "@/components/Icon"
 import SiteFooter from "@/components/SiteFooter"
 import RichText from "@/components/RichText"
-import { usePageMeta } from "@/lib/seo"
+import { socialCardUrl, usePageMeta } from "@/lib/seo"
 
 export default function JobDetailPage() {
   const { slug } = useParams()
@@ -65,6 +65,13 @@ export default function JobDetailPage() {
         ? {
             title: `${job.title} at ${job.company}`,
             description: `${job.title} at ${job.company} — ${job.location}. ${job.employmentType}, ${job.workType}${pay}. Apply directly on Plenilo.com.`,
+            // The listing's generated share card, so a link pasted into
+            // WhatsApp or LinkedIn unfurls as the job rather than as the site
+            // logo. `api/prerender.ts` writes the same URL into the HTML,
+            // which is what the unfurlers actually read — they do not run
+            // this code. Setting it here keeps the tags correct after a
+            // client-side navigation between two listings.
+            image: socialCardUrl(window.location.origin, job.slug),
           }
         : { title: "Job Details" },
   )
