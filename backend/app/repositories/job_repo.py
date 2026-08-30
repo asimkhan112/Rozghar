@@ -229,21 +229,6 @@ class JobRepository(BaseRepository[Job]):
         )
         return int((await self.session.execute(stmt)).scalar_one())
 
-    async def list_by_status(self, status: JobStatus, *, limit: int) -> list[Job]:
-        """Listings in one state, oldest first, for a bulk operation to walk.
-
-        Oldest first so a capped run drains the backlog from the end that has
-        been waiting longest, and so two consecutive runs cannot revisit the
-        same rows.
-        """
-        stmt = (
-            select(Job)
-            .where(Job.status == status, Job.deleted_at.is_(None))
-            .order_by(Job.created_at, Job.id)
-            .limit(limit)
-        )
-        return list((await self.session.execute(stmt)).scalars().all())
-
     async def purge_by_status(
         self, status: JobStatus, *, limit: int
     ) -> list[tuple[UUID, str]]:
@@ -273,6 +258,59 @@ class JobRepository(BaseRepository[Job]):
         stmt = (
             delete(Job)
             .where(Job.id.in_(doomed))
+            .returning(Job.id, Job.slug)
+            .execution_options(synchronize_session=False)
+        )
+        return [(row[0], row[1]) for row in (await self.session.execute(stmt)).all()]
+
+    async def publish_drafts(self, *, updated_by: UUID, limit: int) -> list[tuple[UUID, str]]:
+        """Move every draft to published in one statement. Returns what moved.
+
+        Set-based rather than a loop over ORM objects, and that is the whole
+        point of this method. Walking `JobService._transition` per listing costs
+        four to five *sequential* round trips each — the status flush, a counter
+        update per category, location and company, and the audit insert. On a
+        laptop where Postgres is a container that is a millisecond a hop and
+        nobody notices. Against a hosted database a few tens of milliseconds
+        away it is two thousand hops for five hundred listings, which is how the
+        production request came to run for over two minutes and be cut off by
+        the client while the same code returned instantly in development.
+
+        The transition rules are preserved rather than reimplemented loosely:
+
+          * Only `draft` rows are matched. `ALLOWED_TRANSITIONS` permits
+            `scheduled` and `expired` into `published` too, but this endpoint
+            publishes drafts, and naming the source state in the `WHERE` clause
+            is what keeps that true.
+          * `published_at` is `COALESCE`d, never overwritten — the same
+            stamped-once rule `_transition` applies, so a listing that has been
+            live before keeps its original date and does not jump the recency
+            ordering. It also satisfies the `status <> 'published' OR
+            published_at IS NOT NULL` check constraint.
+          * `version` is bumped, so optimistic concurrency still sees the edit.
+          * `featured` is untouched, correctly: `_transition` only clears it on
+            the way *out* of published.
+
+        Counters are not adjusted here. The caller follows with
+        `recount_live_jobs`, which derives them from this table rather than
+        nudging them by a delta — cheaper than three updates per row, and it
+        cannot drift.
+        """
+        chosen = (
+            select(Job.id)
+            .where(Job.status == JobStatus.DRAFT, Job.deleted_at.is_(None))
+            .limit(limit)
+            .scalar_subquery()
+        )
+        stmt = (
+            update(Job)
+            .where(Job.id.in_(chosen))
+            .values(
+                status=JobStatus.PUBLISHED,
+                published_at=func.coalesce(Job.published_at, func.now()),
+                version=Job.version + 1,
+                updated_by=updated_by,
+            )
             .returning(Job.id, Job.slug)
             .execution_options(synchronize_session=False)
         )
@@ -414,16 +452,52 @@ class JobRepository(BaseRepository[Job]):
         job.version = (job.version or 0) + 1
         await self.session.flush()
 
-    async def list_expiring(self, *, on_or_before: date) -> list[Job]:
-        """Feeds the nightly expiry sweep. Hits the partial index on
-        `expiry_date WHERE status = 'published'`."""
-        stmt = select(Job).where(
-            Job.status == JobStatus.PUBLISHED,
-            Job.deleted_at.is_(None),
-            Job.expiry_date.is_not(None),
-            Job.expiry_date <= on_or_before,
+    async def expire_due(self, *, on_or_before: date) -> list[tuple[UUID, str]]:
+        """The nightly expiry sweep, as one statement. Returns what expired.
+
+        Hits the partial index on `expiry_date WHERE status = 'published'`.
+
+        Set-based for the same reason as `publish_drafts`: this used to load the
+        due listings and walk each one through `JobService._transition`, which
+        is four to five round trips apiece. A board with several hundred
+        listings coming due on the same night made that thousands of sequential
+        hops inside a scheduled task holding an advisory lock.
+
+        It reproduces exactly what `_transition` does for `published -> expired`:
+
+          * `status` moves to `expired`.
+          * `featured` and `featured_until` are cleared — a listing that has
+            left the public site cannot stay featured, and the
+            `ck_jobs_featured_requires_published` constraint enforces it.
+          * `version` is bumped.
+          * `published_at` is left alone; the listing was live, and that date is
+            still the day it went live.
+
+        Counters are left to `recount_live_jobs`, which the caller runs after.
+        """
+        due = (
+            select(Job.id)
+            .where(
+                Job.status == JobStatus.PUBLISHED,
+                Job.deleted_at.is_(None),
+                Job.expiry_date.is_not(None),
+                Job.expiry_date <= on_or_before,
+            )
+            .scalar_subquery()
         )
-        return list((await self.session.execute(stmt)).scalars().all())
+        stmt = (
+            update(Job)
+            .where(Job.id.in_(due))
+            .values(
+                status=JobStatus.EXPIRED,
+                featured=False,
+                featured_until=None,
+                version=Job.version + 1,
+            )
+            .returning(Job.id, Job.slug)
+            .execution_options(synchronize_session=False)
+        )
+        return [(row[0], row[1]) for row in (await self.session.execute(stmt)).all()]
 
     async def adjust_counters(self, job_id: UUID, **deltas: int) -> None:
         """Atomic counter arithmetic.

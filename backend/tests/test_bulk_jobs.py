@@ -368,3 +368,95 @@ def test_both_endpoints_are_reachable_and_not_shadowed_by_the_id_route(client, w
     t = token_for(client, ADMIN_EMAIL)
     for url in (PURGE, PUBLISH_DRAFTS):
         assert client.post(url, headers=auth(t)).status_code == 200, url
+
+
+# --- cost ------------------------------------------------------------------
+
+
+def test_publishing_drafts_costs_the_same_whether_there_are_three_or_thirty():
+    """Statement count must not grow with the size of the batch.
+
+    This is the test for the bug that shipped. The first implementation walked
+    `JobService._transition` per listing, which flushes the status change, then
+    a counter update for the category, the location and the company, then the
+    audit insert — four to five *sequential* round trips per row.
+
+    Nothing about that is visible locally, where Postgres is a container and a
+    round trip is a fraction of a millisecond. In production the database is a
+    network away, six hundred drafts became several thousand sequential hops,
+    and the request ran past two minutes until the browser gave up. The symptom
+    was a failed request in the network tab; the cause was arithmetic.
+
+    So the assertion is not "is it fast" — timing is too noisy to gate a build
+    on — but "does the work grow with the input", which is the property that
+    actually broke and the one a future refactor could quietly undo.
+    """
+    from sqlalchemy import event
+
+    from app.db.database import engine
+    from app.services.auth_service import Principal
+    from app.services.job_service import JobService
+
+    async def statements_for(draft_count: int) -> int:
+        world = await _seed()
+        async with SessionFactory() as s:
+            admin = (
+                await s.execute(select(Admin).where(Admin.email == ADMIN_EMAIL))
+            ).scalar_one()
+            source_id = UUID(world["source_id"])
+            for i in range(draft_count):
+                s.add(
+                    Job(
+                        title=f"Draft {i}",
+                        slug=f"cost-draft-{i}",
+                        company_name="Systems Limited",
+                        category_id=UUID(world["category_id"]),
+                        location_id=UUID(world["location_id"]),
+                        source_id=source_id,
+                        work_type="hybrid",
+                        employment_type="full_time",
+                        experience_level="senior",
+                        description="A" * 60,
+                        apply_url="https://systemslimited.com/careers/x",
+                        status=JobStatus.DRAFT,
+                        created_by=admin.id,
+                    )
+                )
+            await s.commit()
+            admin_id = admin.id
+
+        counter = {"n": 0}
+
+        def before(conn, cursor, statement, *args):
+            counter["n"] += 1
+
+        sync_engine = engine.sync_engine
+        event.listen(sync_engine, "before_cursor_execute", before)
+        try:
+            async with SessionFactory() as s:
+                service = JobService(s)
+                principal = Principal(
+                    admin_id=admin_id,
+                    email=ADMIN_EMAIL,
+                    full_name=ADMIN_EMAIL,
+                    role_key=SystemRole.ADMIN.value,
+                    permissions=frozenset({"JOB_PUBLISH", "JOB_BULK"}),
+                )
+                result = await service.publish_drafts(principal=principal)
+                await s.commit()
+                assert result["published"] == draft_count
+        finally:
+            event.remove(sync_engine, "before_cursor_execute", before)
+        return counter["n"]
+
+    few = asyncio.run(statements_for(3))
+    many = asyncio.run(statements_for(30))
+    assert few == many, (
+        f"statement count grew with the batch ({few} for 3 drafts -> {many} for 30); "
+        "the bulk path has fallen back to per-listing work"
+    )
+    # Six, measured: the UPDATE, the multi-row audit INSERT, three counter
+    # rebuilds, and the remaining-drafts count. The bound leaves room for one
+    # more without absorbing a regression — the per-row version cost roughly
+    # a hundred and fifty for this same batch of thirty.
+    assert many <= 8, f"expected a handful of statements, got {many}"

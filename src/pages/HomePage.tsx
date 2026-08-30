@@ -437,7 +437,7 @@ export default function HomePage() {
       </section>
 
       <div
-        style={{ maxWidth: 1200, margin: "0 auto", padding: "40px 24px 80px" }}
+        style={{ maxWidth: 1200, width: "100%", margin: "0 auto", padding: "40px 24px 80px" }}
       >
         {/* Latest Jobs + Featured sidebar */}
         <div
@@ -927,87 +927,10 @@ export default function HomePage() {
       </div>
 
       {/* Footer */}
-      <footer
-        style={{
-          borderTop: `1px solid ${color.border.base}`,
-          background: color.surface.base,
-          padding: "32px 24px",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1200,
-            margin: "0 auto",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: 16,
-          }}
-        >
-          <div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                marginBottom: 6,
-              }}
-            >
-              <div
-                style={{
-                  width: 24,
-                  height: 24,
-                  background: color.brand.base,
-                  borderRadius: radius.md,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <span
-                  style={{
-                    color: color.surface.base,
-                    fontSize: size["3xs"],
-                    fontWeight: weight.bold,
-                  }}
-                >
-                  PL
-                </span>
-              </div>
-              <span
-                style={{
-                  fontSize: size.base,
-                  fontWeight: weight.semibold,
-                  color: color.text.primary,
-                }}
-              >
-                Plenilo.com
-              </span>
-            </div>
-            <p
-              style={{ margin: 0, fontSize: size.xs, color: color.text.muted }}
-            >
-              Trusted job discovery, worldwide
-            </p>
-          </div>
-          <div style={{ display: "flex", gap: 24 }}>
-            {["About", "Privacy", "Terms", "Contact"].map((l) => (
-              <a
-                key={l}
-                href="#"
-                style={{
-                  fontSize: size.sm,
-                  color: color.text.secondary,
-                  textDecoration: "none",
-                }}
-              >
-                {l}
-              </a>
-            ))}
-          </div>
-        </div>
-      </footer>
+      {/* The page-specific footer that used to sit here was a second,
+          older footer stacked above `SiteFooter` — visible as two footers
+          on the homepage, the upper one with `href="#"` links that went
+          nowhere. `SiteFooter` below is the real one. */}
 
       <style>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }

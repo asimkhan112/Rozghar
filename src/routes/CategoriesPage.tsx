@@ -33,7 +33,7 @@ export default function CategoriesPage() {
     <div style={{ minHeight: "100vh", background: color.surface.canvas, display: "flex", flexDirection: "column" }}>
       <Navbar />
       <div
-        style={{ maxWidth: 1200, margin: "0 auto", padding: "40px 24px 80px" }}
+        style={{ maxWidth: 1200, width: "100%", margin: "0 auto", padding: "40px 24px 80px" }}
       >
         <div style={{ marginBottom: 32 }}>
           <h1

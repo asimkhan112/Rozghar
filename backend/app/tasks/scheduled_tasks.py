@@ -171,28 +171,44 @@ async def expire_jobs(session: AsyncSession) -> dict[str, Any]:
     service = JobService(session)
     today = datetime.now(UTC).date()
 
-    due = await jobs.list_expiring(on_or_before=today)
-    expired: list[str] = []
-    for job in due:
-        # Through the state machine, not by assigning `status` directly.
-        # Assigning it skipped `_adjust_counters`, so every listing this task
-        # expired stayed counted as live in its category, location and company
-        # `job_count` — the counters the homepage tiles and the category index
-        # render. The drift was invisible and permanent: nothing decrements a
-        # listing that has already left `published` by another route.
-        await service._transition(job, JobStatus.EXPIRED)
-        await service.audit.record(
-            admin_id=None,
-            action="job.expire",
-            entity_type="job",
-            entity_id=job.id,
-            before={"status": JobStatus.PUBLISHED.value},
-            after={"status": JobStatus.EXPIRED.value, "reason": "expiry_date_passed"},
-        )
-        expired.append(job.slug)
+    # One UPDATE, then one multi-row audit insert, then the counter rebuild.
+    #
+    # This originally assigned `job.status` directly, which skipped
+    # `_adjust_counters` entirely — so every listing the sweep expired stayed
+    # counted as live in its category, location and company `job_count`, the
+    # numbers the homepage tiles and category index render. That drift was
+    # invisible and permanent, because nothing decrements a listing that has
+    # already left `published` by another route.
+    #
+    # The first fix was to route each listing through `_transition`, which was
+    # correct and far too slow: five round trips per row, thousands of them on a
+    # night when a large batch comes due, inside a task holding an advisory
+    # lock. `expire_due` applies the same transition rules in one statement, and
+    # `recount_live_jobs` derives the counters from the table rather than
+    # nudging them per row — which is also why the old drift cannot come back.
+    expired = await jobs.expire_due(on_or_before=today)
+
+    await service.audit.record_many(
+        admin_id=None,
+        action="job.expire",
+        entity_type="job",
+        entries=[
+            (
+                job_id,
+                {"status": JobStatus.PUBLISHED.value},
+                {
+                    "status": JobStatus.EXPIRED.value,
+                    "reason": "expiry_date_passed",
+                    "slug": slug,
+                },
+            )
+            for job_id, slug in expired
+        ],
+    )
+    await jobs.recount_live_jobs()
 
     await session.flush()
-    return {"expired": len(expired), "slugs": expired[:20]}
+    return {"expired": len(expired), "slugs": [slug for _, slug in expired[:20]]}
 
 
 # --- 2. analytics rollups -------------------------------------------------

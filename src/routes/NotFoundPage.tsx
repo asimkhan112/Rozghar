@@ -19,7 +19,7 @@ export default function NotFoundPage() {
   return (
     <div style={{ minHeight: '100vh', background: color.surface.canvas, display: 'flex', flexDirection: 'column' }}>
       <Navbar />
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 24px 80px' }}>
+      <div style={{ maxWidth: 900, width: '100%', margin: '0 auto', padding: '40px 24px 80px' }}>
         <div style={{ textAlign: 'center', padding: '80px 24px', background: color.surface.base, border: `1px solid ${color.border.base}`, borderRadius: radius['5xl'] }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
             <IconBadge name='compass' size='xl' />

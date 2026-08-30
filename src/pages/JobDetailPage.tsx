@@ -187,7 +187,7 @@ export default function JobDetailPage() {
       <div
         style={{
           maxWidth: 1100,
-          margin: "0 auto",
+          width: "100%", margin: "0 auto",
           padding: "32px 24px 120px",
           display: "grid",
           gridTemplateColumns: "1fr 340px",

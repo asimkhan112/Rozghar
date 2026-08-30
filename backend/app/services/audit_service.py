@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit import AuditLog
@@ -74,6 +75,49 @@ class AuditService:
         self.session.add(entry)
         await self.session.flush()
         return entry
+
+    async def record_many(
+        self,
+        *,
+        admin_id: UUID | None,
+        action: str,
+        entity_type: str,
+        entries: list[tuple[UUID, dict[str, Any] | None, dict[str, Any] | None]],
+        ip_hash: str | None = None,
+    ) -> int:
+        """One INSERT for many entries that share an action.
+
+        `record` flushes on every call, which is correct for a single mutation
+        and ruinous for a bulk one: publishing five hundred listings through it
+        is five hundred sequential inserts against a database that may be tens
+        of milliseconds away. This writes them as a single multi-row statement.
+
+        The trail is not thinned to compensate. Each listing still gets its own
+        row with its own `entity_id` and `before`/`after` — for the purge those
+        rows are the only surviving record that the listing existed at all, so
+        collapsing the batch into one summary entry would be losing the thing
+        the audit log is for.
+
+        `id` is a database identity and `created_at` a server default, so
+        neither needs generating here.
+        """
+        if not entries:
+            return 0
+
+        rows = [
+            {
+                "admin_id": admin_id,
+                "action": action,
+                "entity_type": entity_type,
+                "entity_id": entity_id,
+                "before": {k: _serialise(v) for k, v in before.items()} if before else None,
+                "after": {k: _serialise(v) for k, v in after.items()} if after else None,
+                "ip_hash": ip_hash,
+            }
+            for entity_id, before, after in entries
+        ]
+        await self.session.execute(insert(AuditLog).values(rows))
+        return len(rows)
 
     async def record_change(
         self,

@@ -342,7 +342,7 @@ export default function JobsPage() {
 
       {/* Results */}
       <div
-        style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 24px 80px" }}
+        style={{ maxWidth: 1200, width: "100%", margin: "0 auto", padding: "24px 24px 80px" }}
       >
         <div
           style={{
@@ -438,8 +438,12 @@ export default function JobsPage() {
             )}
           </>
         )}
-        <SiteFooter />
       </div>
+
+      {/* Outside the results column, not inside it. The footer spans the page;
+          nesting it in the 1200px content wrapper rendered it as a boxed strip
+          the same width as the job cards. */}
+      <SiteFooter />
     </div>
   )
 }
