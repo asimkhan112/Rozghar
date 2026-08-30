@@ -14,7 +14,8 @@
  */
 import { createServer } from "vite"
 import { mkdirSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import React from "react"
 import { MemoryRouter, Routes, Route } from "react-router"
 import { JSDOM } from "jsdom"
@@ -50,7 +51,11 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true
 const { createRoot } = await import("react-dom/client")
 const { act } = await import("react")
 
-const ROOT = "/home/asim/Desktop/projects/Rozghar"
+// Derived from this file's own location — `tools/` sits one level under the
+// repository root. It was previously an absolute path to one contributor's
+// home directory, which made `pnpm snapshot` and `pnpm snapshot:diff` fail
+// with an unresolved-entry error on every other machine.
+const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const outDir = process.argv[2]
 if (!outDir) throw new Error("usage: node render-snapshot.mjs <outputDir>")
 mkdirSync(outDir, { recursive: true })

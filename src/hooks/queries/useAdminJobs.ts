@@ -25,7 +25,9 @@ import {
   fetchAdminJob,
   fetchAdminJobs,
   importUsajobs,
+  publishDraftJobs,
   publishJob,
+  purgeExpiredJobs,
   updateJob,
   verifyJob,
   type AdminJob,
@@ -159,6 +161,30 @@ export function useImportUsajobs() {
   const client = useQueryClient()
   return useMutation({
     mutationFn: importUsajobs,
+    onSettled: () => invalidateJobWrites(client),
+  })
+}
+
+/**
+ * Bulk actions.
+ *
+ * Plain mutations with a full invalidation, like `useImportUsajobs` and for the
+ * same reason: they change an unknown number of rows across pages the client
+ * has never loaded, so there is no cache entry to splice a result into. The
+ * optimistic `useJobAction` path the single-listing buttons use cannot apply.
+ */
+export function usePurgeExpiredJobs() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: purgeExpiredJobs,
+    onSettled: () => invalidateJobWrites(client),
+  })
+}
+
+export function usePublishDraftJobs() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: publishDraftJobs,
     onSettled: () => invalidateJobWrites(client),
   })
 }

@@ -21,6 +21,8 @@ from app.core.security import hash_ip
 from app.repositories.job_repo import AdminJobFilters
 from app.schemas.common import Paginated
 from app.schemas.job import (
+    BulkPublishResult,
+    BulkPurgeResult,
     JobAdmin,
     JobCreate,
     JobExpireRequest,
@@ -67,6 +69,68 @@ async def list_jobs(
         per_page=per_page,
     )
     return paginate_jobs(result, admin=True)
+
+
+# --- bulk operations ------------------------------------------------------
+#
+# Registered above the `/{job_id}` routes. FastAPI matches in declaration order,
+# and while `job_id` is typed as a UUID — so `/bulk/...` would fail validation
+# rather than being mistaken for a listing — relying on a 422 to disambiguate a
+# route is a subtlety that outlives whoever knew about it. Ordering makes it
+# unambiguous.
+#
+# Both carry JOB_BULK *in addition to* the permission for the single-listing
+# equivalent. Holding JOB_DELETE means an admin may remove a listing they are
+# looking at; it does not by itself mean they may remove seven hundred they are
+# not. JOB_BULK is held by super admins and admins, and not by editors.
+
+
+@router.post(
+    "/bulk/purge-expired",
+    response_model=BulkPurgeResult,
+    summary="Permanently delete every expired listing",
+)
+async def purge_expired_jobs(
+    request: Request,
+    service: ServiceDep,
+    principal: Annotated[
+        Principal, Depends(require(Permission.JOB_DELETE, Permission.JOB_BULK))
+    ],
+) -> BulkPurgeResult:
+    """Hard delete, and there is no undo.
+
+    Unlike `DELETE /{job_id}`, which sets `deleted_at` and leaves the row for
+    reports and analytics to reference, this removes the rows outright. Reports
+    filed against them, their generated share cards and their per-job analytics
+    rollups cascade away with them; raw analytics events survive with their
+    `job_id` nulled, so totals stay intact and per-listing attribution does not.
+    """
+    result = await service.purge_expired(principal=principal, ip_hash=_ip(request))
+    await service.session.commit()
+    return BulkPurgeResult(**result)
+
+
+@router.post(
+    "/bulk/publish-drafts",
+    response_model=BulkPublishResult,
+    summary="Publish every draft listing",
+)
+async def publish_draft_jobs(
+    request: Request,
+    service: ServiceDep,
+    principal: Annotated[
+        Principal, Depends(require(Permission.JOB_PUBLISH, Permission.JOB_BULK))
+    ],
+) -> BulkPublishResult:
+    """Drafts only — expired listings are left alone.
+
+    Publishing an expired listing would be reversed the same night by the
+    scheduled `expire_due` task, which re-expires anything live whose
+    `expiry_date` has passed.
+    """
+    result = await service.publish_drafts(principal=principal, ip_hash=_ip(request))
+    await service.session.commit()
+    return BulkPublishResult(**result)
 
 
 @router.get("/{job_id}", response_model=JobAdmin, summary="One listing, editorial view")

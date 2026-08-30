@@ -36,7 +36,7 @@ export default function ContactPage() {
 
 
   return (
-    <div style={{ minHeight: '100vh', background: color.surface.canvas }}>
+    <div style={{ minHeight: '100vh', background: color.surface.canvas, display: 'flex', flexDirection: 'column' }}>
       <Navbar />
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '40px 24px 80px' }}>
         <div style={{ marginBottom: 32 }}>

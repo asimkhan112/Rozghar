@@ -9,7 +9,9 @@ export {
   useDeleteJob,
   useExpireJob,
   useFeatureJob,
+  usePublishDraftJobs,
   usePublishJob,
+  usePurgeExpiredJobs,
   useUpdateJob,
   useVerifyJob,
 } from "./useAdminJobs"

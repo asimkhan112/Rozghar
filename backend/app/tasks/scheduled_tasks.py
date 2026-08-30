@@ -174,7 +174,13 @@ async def expire_jobs(session: AsyncSession) -> dict[str, Any]:
     due = await jobs.list_expiring(on_or_before=today)
     expired: list[str] = []
     for job in due:
-        job.status = JobStatus.EXPIRED
+        # Through the state machine, not by assigning `status` directly.
+        # Assigning it skipped `_adjust_counters`, so every listing this task
+        # expired stayed counted as live in its category, location and company
+        # `job_count` — the counters the homepage tiles and the category index
+        # render. The drift was invisible and permanent: nothing decrements a
+        # listing that has already left `published` by another route.
+        await service._transition(job, JobStatus.EXPIRED)
         await service.audit.record(
             admin_id=None,
             action="job.expire",

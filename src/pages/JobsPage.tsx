@@ -136,7 +136,7 @@ export default function JobsPage() {
     : LOCATIONS
 
   return (
-    <div style={{ minHeight: "100vh", background: color.surface.canvas }}>
+    <div style={{ minHeight: "100vh", background: color.surface.canvas, display: "flex", flexDirection: "column" }}>
       <Navbar />
 
       {/* Search bar strip */}

@@ -12,11 +12,12 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import Select, false, func, select, update
+from sqlalchemy import Select, delete, false, func, select, update
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import EmploymentType, ExperienceLevel, JobStatus, WorkType
 from app.models.job import Job
+from app.models.company import Company
 from app.models.taxonomy import Category, Location
 from app.repositories.base import BaseRepository
 
@@ -81,6 +82,15 @@ PUBLIC_SORTS = (SORT_RECENT, SORT_SALARY_DESC, SORT_SALARY_ASC, SORT_TITLE)
 #: Rough conversion so mixed-currency listings sort against each other. A real
 #: rates table is a later concern; a constant is honest about being an estimate.
 USD_TO_PKR = 280
+
+#: Which column on `jobs` each counter counts through. Used by
+#: `recount_live_jobs` so the three repairs are one loop rather than three
+#: near-identical statements that can be corrected one at a time.
+_COUNTED_BY = {
+    Category: Job.category_id,
+    Location: Job.location_id,
+    Company: Job.company_id,
+}
 
 
 class JobRepository(BaseRepository[Job]):
@@ -206,6 +216,98 @@ class JobRepository(BaseRepository[Job]):
             .limit(limit)
         )
         return [(row[0], row[1]) for row in (await self.session.execute(stmt)).all()]
+
+    async def count_by_status(self, status: JobStatus) -> int:
+        """How many listings sit in one lifecycle state, deleted ones excluded.
+
+        Used to tell an admin what a bulk action is about to touch *before*
+        they confirm it, and to report what a capped run left behind.
+        """
+        stmt = (
+            select(func.count(Job.id))
+            .where(Job.status == status, Job.deleted_at.is_(None))
+        )
+        return int((await self.session.execute(stmt)).scalar_one())
+
+    async def list_by_status(self, status: JobStatus, *, limit: int) -> list[Job]:
+        """Listings in one state, oldest first, for a bulk operation to walk.
+
+        Oldest first so a capped run drains the backlog from the end that has
+        been waiting longest, and so two consecutive runs cannot revisit the
+        same rows.
+        """
+        stmt = (
+            select(Job)
+            .where(Job.status == status, Job.deleted_at.is_(None))
+            .order_by(Job.created_at, Job.id)
+            .limit(limit)
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def purge_by_status(
+        self, status: JobStatus, *, limit: int
+    ) -> list[tuple[UUID, str]]:
+        """Permanently remove listings in one state. Returns what went.
+
+        A real `DELETE`, not the `soft_delete` above — the row stops existing.
+        The database is what makes this safe to do in one statement: every
+        foreign key pointing at `jobs` declares its own behaviour, so the
+        cascade is the schema's decision rather than this function's.
+
+            reports                    ON DELETE CASCADE   (go with the listing)
+            job_social_assets          ON DELETE CASCADE   (generated, rebuildable)
+            analytics_daily_rollups    ON DELETE CASCADE
+            analytics_events.job_id    ON DELETE SET NULL  (totals survive,
+                                                            attribution does not)
+
+        `synchronize_session=False` because nothing in this session is expected
+        to hold these rows afterwards — the caller reads them back from the
+        `RETURNING` clause, which is also the only record of what was removed
+        once the statement has run.
+
+        Soft-deleted rows in this state are included deliberately: a listing
+        that is both expired and already hidden is exactly the kind this is
+        meant to clear out for good.
+        """
+        doomed = select(Job.id).where(Job.status == status).limit(limit).scalar_subquery()
+        stmt = (
+            delete(Job)
+            .where(Job.id.in_(doomed))
+            .returning(Job.id, Job.slug)
+            .execution_options(synchronize_session=False)
+        )
+        return [(row[0], row[1]) for row in (await self.session.execute(stmt)).all()]
+
+    async def recount_live_jobs(self) -> None:
+        """Reset every `job_count` to what the jobs table actually says.
+
+        The counters are a denormalised cache, and a cache that only ever moves
+        by deltas drifts the moment one delta is missed. One was: `expire_jobs`
+        used to set `status` directly instead of going through the state
+        machine, so every listing the nightly task expired stayed counted as
+        live. That is fixed at the source, but the accumulated drift is still
+        sitting in these columns, and no delta will ever remove it.
+
+        A correlated subquery rather than a `GROUP BY` join, because the rows
+        that need it most are the ones with no live listings at all — those do
+        not appear in a grouped result, so a join-based repair would leave
+        exactly the wrong counters untouched.
+
+        Companies are included and sources are not: `SourceRepository` has no
+        counter, by design.
+        """
+        for model in (Category, Location, Company):
+            live = (
+                select(func.count(Job.id))
+                .where(
+                    Job.status == JobStatus.PUBLISHED,
+                    Job.deleted_at.is_(None),
+                    _COUNTED_BY[model] == model.id,
+                )
+                .scalar_subquery()
+            )
+            await self.session.execute(update(model).values(job_count=live))
+        await self.session.flush()
 
     async def published_facet_counts(self) -> "FacetCounts":
         """How many live listings sit behind each landing page.

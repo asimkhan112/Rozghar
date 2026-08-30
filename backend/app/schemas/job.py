@@ -257,6 +257,28 @@ class JobDetail(JobSummary):
     related: list[JobSummary] = Field(default_factory=list)
 
 
+class BulkPurgeResult(ORMModel):
+    """Outcome of permanently deleting every expired listing."""
+
+    #: Rows removed by this call. Bounded by `MAX_BULK`.
+    deleted: int
+    #: Expired listings still present afterwards — non-zero when the cap was
+    #: reached, which is the signal to run it again rather than a failure.
+    remaining: int
+    #: The first few slugs removed, so the admin can see what went. Never the
+    #: whole list: a purge of five hundred would make the response unreadable.
+    slugs: list[str]
+
+
+class BulkPublishResult(ORMModel):
+    """Outcome of publishing every draft listing."""
+
+    published: int
+    #: Drafts left over when the cap was reached.
+    remaining: int
+    slugs: list[str]
+
+
 class JobAdmin(JobDetail):
     """Editorial view. Adds state, counters and provenance that must never
     appear on a public response."""

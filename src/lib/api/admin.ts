@@ -204,6 +204,54 @@ export async function expireJob(id: string, reason?: string): Promise<AdminJob> 
   )
 }
 
+// --- bulk operations ------------------------------------------------------
+//
+// Both are capped server-side and report what is left, so a catalogue larger
+// than one batch is drained by pressing again rather than by one request that
+// holds a transaction open across every table cascading from `jobs`.
+
+export interface BulkPurgeResult {
+  /** Rows permanently removed by this call. */
+  deleted: number
+  /** Expired listings still present. Non-zero means the cap was reached. */
+  remaining: number
+  /** The first few slugs removed, for the confirmation toast. */
+  slugs: string[]
+}
+
+export interface BulkPublishResult {
+  published: number
+  remaining: number
+  slugs: string[]
+}
+
+/**
+ * Permanently deletes every expired listing. There is no undo.
+ *
+ * Not `deleteJob` in a loop, and not the same operation: `deleteJob` soft
+ * deletes, leaving the row for reports and analytics to point at. This removes
+ * the rows outright, taking their reports, share cards and per-job analytics
+ * rollups with them.
+ *
+ * The timeout is generous because the work is proportional to the cascade, not
+ * to the number of listings — five hundred deletions can touch several
+ * thousand dependent rows.
+ */
+export function purgeExpiredJobs(): Promise<BulkPurgeResult> {
+  return api.post<BulkPurgeResult>('/admin/jobs/bulk/purge-expired', {}, { timeout: 120_000 })
+}
+
+/**
+ * Publishes every draft listing.
+ *
+ * Drafts only. Expired listings are deliberately untouched — the nightly
+ * expiry task would put them straight back, since their expiry date is what
+ * expired them in the first place.
+ */
+export function publishDraftJobs(): Promise<BulkPublishResult> {
+  return api.post<BulkPublishResult>('/admin/jobs/bulk/publish-drafts', {}, { timeout: 120_000 })
+}
+
 // --- reports --------------------------------------------------------------
 
 export interface ReportQuery {

@@ -21,7 +21,9 @@ import {
   useExpireJob,
   useFeatureJob,
   useImportUsajobs,
+  usePublishDraftJobs,
   usePublishJob,
+  usePurgeExpiredJobs,
   useVerifyJob,
 } from "@/hooks/queries"
 import { describeError } from "@/lib/http"
@@ -98,6 +100,64 @@ export default function JobsSection() {
       showToast(describeError(err))
     }
   }
+  const purgeExpired = usePurgeExpiredJobs()
+  const publishDrafts = usePublishDraftJobs()
+
+  /**
+   * Which bulk action is armed, if any.
+   *
+   * Both are two-step. Neither acts on the rows in front of you — they act on
+   * every expired or draft listing in the catalogue, including the hundreds on
+   * pages nobody has looked at — so a single press is not consent. The armed
+   * state is what puts the real number in front of the admin before it runs.
+   */
+  const [bulkArmed, setBulkArmed] = useState<null | "purge" | "publish">(null)
+
+  /**
+   * How many listings each button would touch.
+   *
+   * One row is fetched purely for its `total`; the table's own query is
+   * filtered and paginated and cannot answer "how many drafts exist" from the
+   * page it happens to be showing. Both are invalidated by every job write, so
+   * the counts follow the actions rather than going stale behind them.
+   */
+  const expiredTotal = useAdminJobs({ page: 1, per_page: 1, status: "expired" }).data?.total ?? 0
+  const draftTotal = useAdminJobs({ page: 1, per_page: 1, status: "draft" }).data?.total ?? 0
+
+  /**
+   * Permanently deletes every expired listing.
+   *
+   * The toast names the remainder as well as the count, because the server caps
+   * one call at 500 — and a run that stopped at the cap looks exactly like one
+   * that finished.
+   */
+  const runPurgeExpired = async () => {
+    setBulkArmed(null)
+    try {
+      const result = await purgeExpired.mutateAsync()
+      const parts = [`${result.deleted} expired listing${result.deleted === 1 ? "" : "s"} deleted`]
+      if (result.remaining) parts.push(`${result.remaining} left — press again to continue`)
+      showToast(parts.join(", "))
+    } catch (err) {
+      showToast(describeError(err))
+    }
+  }
+
+  const runPublishDrafts = async () => {
+    setBulkArmed(null)
+    try {
+      const result = await publishDrafts.mutateAsync()
+      const parts = [`${result.published} draft${result.published === 1 ? "" : "s"} published`]
+      if (result.remaining) parts.push(`${result.remaining} left — press again to continue`)
+      showToast(parts.join(", "))
+      if (result.published > 0) setStatusFilter("Published")
+    } catch (err) {
+      showToast(describeError(err))
+    }
+  }
+
+  const bulkBusy = purgeExpired.isPending || publishDrafts.isPending
+
   // Ids, not row indices. Indices are positions in a filtered, paginated view
   // that shifts under the selection the moment a mutation lands — selecting
   // row 3 and then expiring it would apply the next action to whatever slid
@@ -369,6 +429,53 @@ export default function JobsSection() {
             ))}
           </div>
         )}
+        {/* Bulk actions. Disabled at zero rather than hidden — a greyed
+            "Publish drafts (0)" answers "are there any drafts?" without the
+            admin having to switch filters to find out. */}
+        <button
+          onClick={() => setBulkArmed(bulkArmed === "publish" ? null : "publish")}
+          disabled={draftTotal === 0 || bulkBusy}
+          title="Publish every draft listing. Expired listings are not touched."
+          style={{
+            padding: "8px 14px",
+            background: bulkArmed === "publish" ? color.brand.tint : color.surface.base,
+            border: `1px solid ${bulkArmed === "publish" ? color.brand.base : color.border.base}`,
+            borderRadius: radius.xl,
+            color: draftTotal === 0 ? color.text.muted : color.brand.base,
+            fontSize: size.sm,
+            fontWeight: weight.medium,
+            cursor: draftTotal === 0 || bulkBusy ? "not-allowed" : "pointer",
+            opacity: draftTotal === 0 ? 0.55 : 1,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <Icon name="check" size={14} />
+          {publishDrafts.isPending ? "Publishing…" : `Publish drafts (${draftTotal})`}
+        </button>
+        <button
+          onClick={() => setBulkArmed(bulkArmed === "purge" ? null : "purge")}
+          disabled={expiredTotal === 0 || bulkBusy}
+          title="Permanently delete every expired listing. This cannot be undone."
+          style={{
+            padding: "8px 14px",
+            background: bulkArmed === "purge" ? color.danger.tint : color.surface.base,
+            border: `1px solid ${bulkArmed === "purge" ? color.danger.base : color.border.base}`,
+            borderRadius: radius.xl,
+            color: expiredTotal === 0 ? color.text.muted : color.danger.text,
+            fontSize: size.sm,
+            fontWeight: weight.medium,
+            cursor: expiredTotal === 0 || bulkBusy ? "not-allowed" : "pointer",
+            opacity: expiredTotal === 0 ? 0.55 : 1,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <Icon name="close" size={14} />
+          {purgeExpired.isPending ? "Deleting…" : `Delete expired (${expiredTotal})`}
+        </button>
         <button
           onClick={() => void runImport()}
           disabled={importJobs.isPending}
@@ -421,6 +528,77 @@ export default function JobsSection() {
           Add Job
         </button>
       </div>
+
+      {/* Armed bulk action.
+          Deliberately a banner rather than a browser `confirm()`: it has to
+          state the count, say what is and is not reversible, and survive being
+          read twice. The purge wording leads with the consequence, because
+          "are you sure?" is the one question everybody answers yes to. */}
+      {bulkArmed && (
+        <div
+          role="alertdialog"
+          aria-label={bulkArmed === "purge" ? "Confirm permanent deletion" : "Confirm publish"}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+            padding: "12px 16px",
+            borderRadius: radius["3xl"],
+            border: `1px solid ${bulkArmed === "purge" ? color.danger.border : color.border.base}`,
+            background: bulkArmed === "purge" ? color.danger.tint : color.surface.muted,
+          }}
+        >
+          <span style={{ fontSize: size.sm, color: color.text.primary, flex: 1, minWidth: 260 }}>
+            {bulkArmed === "purge" ? (
+              <>
+                <strong>Permanently delete {expiredTotal} expired listing
+                {expiredTotal === 1 ? "" : "s"}.</strong>{" "}
+                The rows are removed from the database, along with any reports filed
+                against them and their per-job analytics. This cannot be undone.
+                {expiredTotal > 500 && " Up to 500 are removed per press."}
+              </>
+            ) : (
+              <>
+                <strong>Publish {draftTotal} draft{draftTotal === 1 ? "" : "s"}.</strong>{" "}
+                They go live on the site immediately. Expired listings are not affected,
+                and anything published here can be moved back to draft.
+                {draftTotal > 500 && " Up to 500 are published per press."}
+              </>
+            )}
+          </span>
+          <button
+            onClick={() => void (bulkArmed === "purge" ? runPurgeExpired() : runPublishDrafts())}
+            style={{
+              padding: "7px 16px",
+              border: "none",
+              borderRadius: radius.md,
+              background: bulkArmed === "purge" ? color.danger.base : color.brand.base,
+              color: color.surface.base,
+              fontSize: size.sm,
+              fontWeight: weight.medium,
+              cursor: "pointer",
+            }}
+          >
+            {bulkArmed === "purge" ? `Delete ${expiredTotal} permanently` : `Publish ${draftTotal}`}
+          </button>
+          <button
+            onClick={() => setBulkArmed(null)}
+            style={{
+              padding: "7px 14px",
+              border: `1px solid ${color.border.base}`,
+              borderRadius: radius.md,
+              background: color.surface.base,
+              color: color.text.secondary,
+              fontSize: size.sm,
+              fontWeight: weight.medium,
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
       {/* Status filter pills */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>

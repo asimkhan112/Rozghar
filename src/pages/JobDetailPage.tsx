@@ -124,7 +124,7 @@ export default function JobDetailPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: color.surface.canvas }}>
+    <div style={{ minHeight: "100vh", background: color.surface.canvas, display: "flex", flexDirection: "column" }}>
       <Navbar />
 
       {/* Breadcrumb */}

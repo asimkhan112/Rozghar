@@ -30,7 +30,7 @@ export default function CategoriesPage() {
   usePageMeta(STATIC_PAGE_META["/categories"])
 
   return (
-    <div style={{ minHeight: "100vh", background: color.surface.canvas }}>
+    <div style={{ minHeight: "100vh", background: color.surface.canvas, display: "flex", flexDirection: "column" }}>
       <Navbar />
       <div
         style={{ maxWidth: 1200, margin: "0 auto", padding: "40px 24px 80px" }}

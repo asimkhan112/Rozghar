@@ -17,7 +17,7 @@ export default function NotFoundPage() {
   usePageMeta(NOT_FOUND_META)
 
   return (
-    <div style={{ minHeight: '100vh', background: color.surface.canvas }}>
+    <div style={{ minHeight: '100vh', background: color.surface.canvas, display: 'flex', flexDirection: 'column' }}>
       <Navbar />
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 24px 80px' }}>
         <div style={{ textAlign: 'center', padding: '80px 24px', background: color.surface.base, border: `1px solid ${color.border.base}`, borderRadius: radius['5xl'] }}>

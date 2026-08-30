@@ -51,6 +51,15 @@ ALLOWED_TRANSITIONS: dict[JobStatus, frozenset[JobStatus]] = {
 }
 
 
+#: How many listings one bulk call may touch.
+#:
+#: A ceiling on the transaction, not on the operation: the endpoints report what
+#: is left so the admin can run again. Without it a single press could open a
+#: transaction over the whole catalogue, holding locks across every table that
+#: cascades from `jobs` for as long as it takes.
+MAX_BULK = 500
+
+
 class InvalidTransition(DomainError):
     status = 422
     code = "invalid_transition"
@@ -383,6 +392,105 @@ class JobService:
             before={"slug": job.slug, "status": job.status},
             ip_hash=ip_hash,
         )
+
+    # --- bulk operations --------------------------------------------------
+
+    async def purge_expired(
+        self, *, principal: Principal, ip_hash: str | None = None, limit: int = MAX_BULK
+    ) -> dict[str, Any]:
+        """Permanently delete every expired listing.
+
+        A hard delete, unlike `delete` above, which only sets `deleted_at`. The
+        rows stop existing and the reports, share cards and per-job analytics
+        rollups that hang off them go too — see `purge_by_status` for the exact
+        cascade. There is no undo, which is why the route asks for confirmation
+        and why the audit entries below are written before the statement runs.
+
+        No counter adjustment. `_adjust_counters` runs on the transitions into
+        and out of `PUBLISHED`, and `ALLOWED_TRANSITIONS` only reaches `EXPIRED`
+        from `PUBLISHED` — so every row this touches was already decremented on
+        its way out of the public site. Decrementing again here would drive the
+        category and location counts negative.
+
+        Capped, and the caller is told what is left. An unbounded delete over a
+        catalogue of any size is one long transaction holding row locks on
+        `reports` and `analytics_daily_rollups` as it cascades.
+        """
+        doomed = await self.jobs.purge_by_status(JobStatus.EXPIRED, limit=limit)
+
+        # Written per listing, not once for the batch. After the delete these
+        # entries are the only remaining record that the row ever existed —
+        # `audit_logs.entity_id` carries no foreign key precisely so it can
+        # outlive what it points at.
+        for job_id, slug in doomed:
+            await self.audit.record(
+                admin_id=principal.admin_id,
+                action="job.purge",
+                entity_type="job",
+                entity_id=job_id,
+                before={"slug": slug, "status": JobStatus.EXPIRED.value},
+                after=None,
+                ip_hash=ip_hash,
+            )
+
+        # The counters are rebuilt from the jobs table rather than nudged by a
+        # delta. Nothing this statement removed was still counted as live — see
+        # above — so this is not correcting for the purge. It is the moment to
+        # repair the drift that `expire_jobs` accumulated while it bypassed the
+        # state machine, and a cleanup action is exactly where an admin expects
+        # the numbers to come out right afterwards.
+        await self.jobs.recount_live_jobs()
+
+        remaining = await self.jobs.count_by_status(JobStatus.EXPIRED)
+        return {
+            "deleted": len(doomed),
+            "remaining": remaining,
+            "slugs": [slug for _, slug in doomed[:20]],
+        }
+
+    async def publish_drafts(
+        self, *, principal: Principal, ip_hash: str | None = None, limit: int = MAX_BULK
+    ) -> dict[str, Any]:
+        """Publish every draft listing.
+
+        Drafts only. `ALLOWED_TRANSITIONS` also permits `EXPIRED -> PUBLISHED`,
+        but reviving an expired listing here would be undone the same night:
+        `expire_due` re-expires anything published whose `expiry_date` has
+        passed, which is exactly the set that expired in the first place.
+        Extending those dates is an editorial decision about whether a role is
+        still open, and not something a bulk button should make on its own.
+
+        Each listing goes through `_transition`, so this shares one code path
+        with the single-listing publish button — the counter updates, the
+        once-only `published_at` stamp and the audit trail are the same ones,
+        rather than a second implementation of them that can drift.
+
+        Deliberately not tolerant of a partial failure: if one listing cannot be
+        published the whole batch raises and the transaction rolls back. A bulk
+        action that half-applied would leave the admin unable to tell which half
+        without reading every row.
+        """
+        drafts = await self.jobs.list_by_status(JobStatus.DRAFT, limit=limit)
+
+        for job in drafts:
+            await self._transition(job, JobStatus.PUBLISHED)
+            job.updated_by = principal.admin_id
+            await self.audit.record(
+                admin_id=principal.admin_id,
+                action="job.publish",
+                entity_type="job",
+                entity_id=job.id,
+                before={"status": JobStatus.DRAFT.value},
+                after={"status": job.status, "published_at": job.published_at},
+                ip_hash=ip_hash,
+            )
+
+        remaining = await self.jobs.count_by_status(JobStatus.DRAFT)
+        return {
+            "published": len(drafts),
+            "remaining": remaining,
+            "slugs": [job.slug for job in drafts[:20]],
+        }
 
     # --- internals --------------------------------------------------------
 
