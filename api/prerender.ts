@@ -100,7 +100,23 @@ const LIST_SCHEMA_SIZE = 20
 let cachedShell: string | null = null
 
 /**
- * Fetches `/index.html` from this deployment.
+ * Where the built shell is fetched from, in order of preference.
+ *
+ * `app.html` first because that is what `vercel.ts` renames it to at build
+ * time. The rename exists so that nothing on the filesystem answers `/`: Vercel
+ * resolves files before rewrites, so while the shell sat at `index.html` the
+ * home page was served straight from disk and this function never ran for it —
+ * the site's most-read URL was its only one with no metadata and no content.
+ *
+ * `index.html` stays in the list as the fallback. A deployment built without
+ * that command — a preview built by hand, a rolled-back configuration — then
+ * still renders every other route correctly instead of answering 503 across
+ * the whole site.
+ */
+const SHELL_PATHS = ['/app.html', '/index.html'] as const
+
+/**
+ * Fetches the built shell from this deployment.
  *
  * Vercel resolves the filesystem before rewrites — the same rule `vercel.ts`
  * relies on when it deletes `dist/robots.txt` so the backend's copy can win —
@@ -108,21 +124,25 @@ let cachedShell: string | null = null
  */
 async function loadShell(origin: string): Promise<string | null> {
   if (cachedShell) return cachedShell
-  try {
-    const response = await fetch(`${origin}/index.html`, {
-      signal: AbortSignal.timeout(SHELL_TIMEOUT_MS),
-    })
-    if (!response.ok) return null
-    const html = await response.text()
-    // A body with no head is not the shell — most likely an error page from
-    // somewhere upstream. Caching it would poison every request this instance
-    // serves for as long as it lives.
-    if (!/<\/head>/i.test(html)) return null
-    cachedShell = html
-    return html
-  } catch {
-    return null
+  for (const path of SHELL_PATHS) {
+    try {
+      const response = await fetch(`${origin}${path}`, {
+        signal: AbortSignal.timeout(SHELL_TIMEOUT_MS),
+      })
+      if (!response.ok) continue
+      const html = await response.text()
+      // A body with no head is not the shell — most likely an error page from
+      // somewhere upstream, or the catch-all rewrite answering for a path that
+      // no longer exists. Caching it would poison every request this instance
+      // serves for as long as it lives.
+      if (!/<\/head>/i.test(html)) continue
+      cachedShell = html
+      return html
+    } catch {
+      // Timed out or refused. Try the next candidate before giving up.
+    }
   }
+  return null
 }
 
 /**

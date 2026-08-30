@@ -43,7 +43,22 @@ export const config: VercelConfig = {
   // it lets the backend answer, which is what makes the response
   // environment-aware: `Disallow: /` on staging, the real policy in
   // production, decided by the API rather than by a build artefact.
-  buildCommand: 'pnpm build && rm -f dist/robots.txt',
+  // `mv dist/index.html dist/app.html` is the same manoeuvre as the deletion
+  // above, for the same reason and with worse consequences if it is skipped.
+  //
+  // Vercel resolves the filesystem before rewrites, and `/` resolves to
+  // `index.html`. So the catch-all below — which gives every other URL on the
+  // site its title, canonical, Open Graph tags, JSON-LD and server-rendered
+  // body — was silently skipped for the home page, which served the built
+  // shell byte-for-byte: the one page guaranteed to be read first was the only
+  // page with no metadata and no content.
+  //
+  // Renaming the shell leaves nothing at `/` for the filesystem to match, so
+  // the rewrite applies there like everywhere else. `api/prerender.ts` looks
+  // for `app.html` first and still accepts `index.html`, so a build that has
+  // not run this command degrades to today's behaviour rather than to a blank
+  // site.
+  buildCommand: 'pnpm build && rm -f dist/robots.txt && mv dist/index.html dist/app.html',
   outputDirectory: 'dist',
   framework: 'vite',
 
