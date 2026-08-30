@@ -35,7 +35,8 @@
  * where an empty 200 tells it the page is genuinely blank and to drop it.
  */
 
-import { applyHead, type HeadPlan } from './_seo/html'
+import { applyBody, applyHead, type HeadPlan } from './_seo/html'
+import { renderBody, type BodyPlan, type LinkItem } from './_seo/body'
 import {
   breadcrumbSchema,
   itemListSchema,
@@ -43,11 +44,18 @@ import {
   serializeJsonLd,
   siteSchema,
 } from './_seo/schema'
-import type { WireJobDetail, WireJobList, WireLocation, WireCategory } from './_seo/types'
+import type {
+  WireCategory,
+  WireJobDetail,
+  WireJobList,
+  WireJobSummary,
+  WireLocation,
+} from './_seo/types'
 import {
   DEFAULT_DESCRIPTION,
   DEFAULT_TITLE,
   DESCRIPTION_BUDGET,
+  SITE_TAGLINE,
   canonicalUrl,
   defaultSocialImage,
   pageTitle,
@@ -171,6 +179,53 @@ function resolveOrigin(request: Request): string {
 interface Resolved {
   plan: HeadPlan
   status: number
+  /**
+   * What to write into `#root`. Optional because a page may resolve its
+   * metadata and still have nothing to say in the body — the API was slow, the
+   * URL names nothing — and an absent plan leaves the shell's empty mount
+   * exactly as it was.
+   */
+  body?: BodyPlan
+}
+
+/** `full_time` -> `Full-time`, `on_site` -> `On-site`. */
+function humanise(value: string): string {
+  const spaced = value.replace(/_/g, '-')
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+}
+
+/**
+ * A salary as a person reads it, or null when there is nothing to state.
+ *
+ * Undisclosed pay renders as no row at all rather than as "Not specified": the
+ * fact is already absent from the page, and inventing a label for its absence
+ * fills a listing with rows that say nothing.
+ */
+function formatSalary(salary: WireJobSummary['salary']): string | null {
+  if (!salary.disclosed) return null
+  const amount = (value: string | null) => {
+    if (!value) return null
+    const parsed = Number(value)
+    // Decimals arrive as strings and are not always numeric; anything that does
+    // not parse is printed as it came rather than rendered as `NaN`.
+    return Number.isFinite(parsed)
+      ? parsed.toLocaleString('en-US', { maximumFractionDigits: 0 })
+      : value
+  }
+  const min = amount(salary.min)
+  const max = amount(salary.max)
+  const range = min && max ? `${min}–${max}` : (min ?? max)
+  if (!range) return null
+  return `${salary.currency} ${range} per ${salary.period}`
+}
+
+/** A listing as one row of a browse page: title, then who and where. */
+function jobLink(job: WireJobSummary): LinkItem {
+  return {
+    label: job.title,
+    href: `/jobs/${job.slug}`,
+    note: `${job.company_name} — ${job.location.display_name}`,
+  }
 }
 
 /** The shell's own metadata, used for anything with nothing better to say. */
@@ -201,6 +256,7 @@ function finish(plan: Omit<HeadPlan, 'title' | 'description'> & {
 function notFound(origin: string, pathname: string): Resolved {
   return {
     status: 404,
+    body: { heading: NOT_FOUND_META.title, intro: NOT_FOUND_META.description },
     plan: finish({
       ...baseline(origin, pathname, true),
       title: NOT_FOUND_META.title,
@@ -221,7 +277,13 @@ function notFound(origin: string, pathname: string): Resolved {
  * 503 would deny a working page to a reader who could have had it.
  */
 function unavailable(origin: string, pathname: string): Resolved {
-  return { status: 200, plan: baseline(origin, pathname) }
+  return {
+    status: 200,
+    plan: baseline(origin, pathname),
+    // No data means no listing to write out, but the reader still gets a page
+    // that names the site and links into it rather than an empty container.
+    body: { heading: SITE_TAGLINE, intro: DEFAULT_DESCRIPTION },
+  }
 }
 
 /** One listing: the `JobPosting` that makes it eligible for Google's job box. */
@@ -245,8 +307,38 @@ async function resolveJob(
   const pay = job.salary.disclosed && (job.salary.min || job.salary.max)
   const where = job.location.display_name
 
+  const salary = formatSalary(job.salary)
+
   return {
     status: 200,
+    body: {
+      breadcrumbs: [
+        { label: 'Home', href: '/' },
+        { label: 'Jobs', href: '/jobs' },
+        { label: job.category.name, href: `/${job.category.slug}-jobs` },
+      ],
+      heading: job.title,
+      intro: `${job.company_name} — ${where}`,
+      blocks: [
+        {
+          kind: 'facts',
+          items: [
+            { label: 'Company', value: job.company_name },
+            { label: 'Location', value: where },
+            { label: 'Employment type', value: humanise(job.employment_type) },
+            { label: 'Work type', value: humanise(job.work_type) },
+            { label: 'Category', value: job.category.name },
+            ...(salary ? [{ label: 'Salary', value: salary }] : []),
+          ],
+        },
+        { kind: 'prose', heading: 'Job description', body: job.description },
+        { kind: 'list', heading: 'Responsibilities', items: job.responsibilities ?? [] },
+        { kind: 'list', heading: 'Requirements', items: job.requirements ?? [] },
+        { kind: 'list', heading: 'Benefits', items: job.benefits ?? [] },
+        // The employer's own page, which is where every application goes.
+        { kind: 'action', label: 'Apply for this job', href: job.apply_url },
+      ],
+    },
     plan: finish({
       title: `${job.title} at ${job.company_name}`,
       description:
@@ -367,6 +459,11 @@ async function resolveLandingPage(
 
   return {
     status: 200,
+    body: {
+      heading: copy.heading,
+      intro: copy.intro,
+      blocks: [{ kind: 'links', heading: 'Open positions', items: items.map(jobLink) }],
+    },
     plan: finish({
       title: copy.title,
       description: copy.description,
@@ -391,8 +488,21 @@ async function resolve(origin: string, pathname: string): Promise<Resolved> {
   }
 
   if (pathname === '/') {
+    // The homepage used to resolve without touching the API, because its title
+    // and description are constants. It fetches now for the body: the front
+    // page of a job board that lists no jobs is the emptiest page on the site,
+    // and it is the one anything auditing the site reads first.
+    const list = await fetchJson<WireJobList>(
+      `${apiBase(origin)}/jobs?per_page=${LIST_SCHEMA_SIZE}`,
+    )
+    const items = list.kind === 'ok' ? list.data.items : []
     return {
       status: 200,
+      body: {
+        heading: SITE_TAGLINE,
+        intro: DEFAULT_DESCRIPTION,
+        blocks: [{ kind: 'links', heading: 'Latest jobs', items: items.map(jobLink) }],
+      },
       plan: finish({
         ...baseline(origin, pathname),
         title: DEFAULT_TITLE,
@@ -415,6 +525,11 @@ async function resolve(origin: string, pathname: string): Promise<Resolved> {
     const meta = STATIC_PAGE_META['/jobs']
     return {
       status: 200,
+      body: {
+        heading: meta.title,
+        intro: meta.description,
+        blocks: [{ kind: 'links', heading: 'Open positions', items: items.map(jobLink) }],
+      },
       plan: finish({
         ...baseline(origin, pathname),
         title: meta.title,
@@ -424,10 +539,48 @@ async function resolve(origin: string, pathname: string): Promise<Resolved> {
     }
   }
 
+  if (pathname === '/categories') {
+    const fetched = await fetchJson<WireCategory[]>(`${apiBase(origin)}/categories`)
+    const meta = STATIC_PAGE_META['/categories']
+    const categories = fetched.kind === 'ok' ? fetched.data : []
+    return {
+      status: 200,
+      body: {
+        heading: meta.title,
+        intro: meta.description,
+        blocks: [
+          {
+            kind: 'links',
+            heading: 'Browse by field',
+            items: categories.map((category) => ({
+              label: category.name,
+              href: `/${category.slug}-jobs`,
+              note:
+                category.job_count === undefined
+                  ? undefined
+                  : `${category.job_count} open ${category.job_count === 1 ? 'role' : 'roles'}`,
+            })),
+          },
+        ],
+      },
+      plan: finish({
+        ...baseline(origin, pathname),
+        title: meta.title,
+        description: meta.description,
+      }),
+    }
+  }
+
   const staticMeta = STATIC_PAGE_META[pathname]
   if (staticMeta) {
     return {
       status: 200,
+      // Heading and lead only. The prose on these pages lives in JSX, and
+      // restating it here would be a second copy free to drift from the one
+      // readers see — the exact failure `pageMeta.ts` exists to prevent. Both
+      // strings below come from that shared module, so this page's server body
+      // and its rendered body cannot disagree about what it is.
+      body: { heading: staticMeta.title, intro: staticMeta.description },
       plan: finish({
         ...baseline(origin, pathname),
         title: staticMeta.title,
@@ -448,6 +601,7 @@ async function resolve(origin: string, pathname: string): Promise<Resolved> {
   // status line agree with it.
   return {
     status: 404,
+    body: { heading: NOT_FOUND_META.title, intro: NOT_FOUND_META.description },
     plan: finish({
       ...baseline(origin, pathname, true),
       title: NOT_FOUND_META.title,
@@ -504,7 +658,15 @@ export default async function handler(request: Request): Promise<Response> {
     resolved = { status: 200, plan: baseline(origin, pathname) }
   }
 
-  return new Response(applyHead(shell, resolved.plan), {
+  // Head first, then the body it describes. Both are best-effort by
+  // construction: each returns the document unchanged if its anchor is missing,
+  // so a shell that changes shape costs metadata or content, never the page.
+  const document = applyBody(
+    applyHead(shell, resolved.plan),
+    resolved.body ? renderBody(resolved.body) : '',
+  )
+
+  return new Response(document, {
     status: resolved.status,
     headers: {
       'content-type': 'text/html; charset=utf-8',

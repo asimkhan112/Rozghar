@@ -132,3 +132,23 @@ export function applyHead(shell: string, plan: HeadPlan): string {
     `    ${renderHead(plan)}\n  </head>`,
   )
 }
+
+/**
+ * Places rendered content inside the shell's mount point.
+ *
+ * Vite emits `<div id="root"></div>` and nothing else in the body, so this
+ * matches that exact element and fills it. A shell that does not contain it —
+ * which would mean the build changed shape — is returned untouched rather than
+ * guessed at, on the same principle as `applyHead`: the page must survive a
+ * failed match, and a body assembled by a regex that half-fired may not.
+ *
+ * React clears the container at `createRoot`, so what goes in here is replaced
+ * the moment the bundle runs. It is the first paint for a reader on a slow
+ * connection and the whole document for anything that never runs the bundle.
+ */
+export function applyBody(shell: string, markup: string): string {
+  if (!markup) return shell
+  const mount = /<div id="root"><\/div>/i
+  if (!mount.test(shell)) return shell
+  return shell.replace(mount, `<div id="root">${markup}</div>`)
+}
