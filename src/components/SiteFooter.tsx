@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
-import { color, linkReset, radius, size, weight } from '@/design-system'
+import { color, linkReset, size, weight } from '@/design-system'
+import BrandMark from '@/components/BrandMark'
 
 /**
  * Site footer.
@@ -57,22 +58,7 @@ export default function SiteFooter() {
         >
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
-              <span
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: radius.xl,
-                  background: color.brand.base,
-                  color: color.text.inverse,
-                  fontSize: size['2xs'],
-                  fontWeight: weight.bold,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                PL
-              </span>
+              <BrandMark size={28} />
               <span style={{ fontSize: size.md, fontWeight: weight.bold, color: color.text.primary }}>
                 Plenilo.com
               </span>

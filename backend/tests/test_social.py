@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 from sqlalchemy import delete, select
 
+from app.core.config import settings
 from app.core.enums import SocialVariant
 from app.core.permissions import SystemRole
 from app.core.security import hash_password
@@ -253,10 +254,20 @@ def test_whatsapp_message_carries_no_hashtags():
     assert "/jobs/senior-frontend-engineer" in message
 
 
+def _tweet_cost(tweet: str, data: CaptionInput) -> int:
+    """What X charges for the post: every link wrapped to a fixed width."""
+    from app.services.caption_service import TWEET_URL_COST
+
+    links = [data.job_url] + [
+        url for url in (settings.whatsapp_channel_url,) if url and url in tweet
+    ]
+    return len(tweet) - sum(map(len, links)) + TWEET_URL_COST * len(links)
+
+
 def test_tweet_fits_the_character_budget():
     """A URL costs 23 characters however long it is, so the budget is computed
     against that rather than against the literal string."""
-    from app.services.caption_service import TWEET_LIMIT, TWEET_URL_COST
+    from app.services.caption_service import TWEET_LIMIT
 
     for title in (
         "Data Analyst",
@@ -265,9 +276,40 @@ def test_tweet_fits_the_character_budget():
     ):
         data = caption_input(title=title)
         tweet = build_captions(data).twitter
-        cost = len(tweet) - len(data.job_url) + TWEET_URL_COST
+        cost = _tweet_cost(tweet, data)
         assert cost <= TWEET_LIMIT, f"{title!r} produced {cost} characters"
         assert data.job_url in tweet, "the link is never sacrificed"
+
+
+def test_every_caption_carries_the_whatsapp_channel():
+    """A post is read once; a channel follower is read every time."""
+    channel = settings.whatsapp_channel_url
+    assert channel, "the default configuration ships a channel"
+
+    captions = build_captions(caption_input())
+    for platform in ("linkedin", "whatsapp", "facebook", "twitter"):
+        assert channel in getattr(captions, platform), f"{platform} dropped the channel"
+
+
+def test_the_channel_line_disappears_when_unconfigured(monkeypatch):
+    """Deployments without a channel must not post an empty prompt."""
+    monkeypatch.setattr(settings, "whatsapp_channel_url", "")
+    captions = build_captions(caption_input())
+    for platform in ("linkedin", "whatsapp", "facebook", "twitter"):
+        text = getattr(captions, platform)
+        assert "channel" not in text.lower(), f"{platform} kept a dangling prompt"
+        assert "\n\n\n" not in text, f"{platform} left a blank paragraph behind"
+
+
+def test_the_channel_is_sacrificed_before_the_tweet_overflows():
+    """The budget wins: a listing that cannot fit both posts the job link."""
+    from app.services.caption_service import TWEET_LIMIT
+
+    data = caption_input(title="Senior " + "Very Long Title Fragment " * 8)
+    tweet = build_captions(data).twitter
+    assert _tweet_cost(tweet, data) <= TWEET_LIMIT
+    assert data.job_url in tweet
+    assert settings.whatsapp_channel_url not in tweet
 
 
 def test_hashtags_are_derived_from_role_and_skills():

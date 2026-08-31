@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router'
 import { color, countPill, linkReset, radius, size, tracking, weight } from '@/design-system'
 import { useSavedCount } from '@/stores/useSavedJobsStore'
+import BrandMark from '@/components/BrandMark'
 
 /**
  * Site header.
@@ -39,9 +40,7 @@ export default function Navbar() {
           to="/"
           style={{ ...linkReset, display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
         >
-          <div style={{ width: 32, height: 32, background: color.brand.base, borderRadius: radius.xl, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: color.text.inverse, fontSize: size.base, fontWeight: weight.bold }}>PL</span>
-          </div>
+          <BrandMark size={32} />
           <span style={{ fontSize: size.lg, fontWeight: weight.semibold, color: color.text.primary, letterSpacing: tracking.tight }}>Plenilo.com</span>
         </Link>
 

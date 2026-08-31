@@ -1,29 +1,35 @@
 /**
  * Renders the Plenilo mark into the raster icon formats a browser asks for.
  *
- * `public/favicon.svg` is the master and covers every current browser, but a
- * tab icon is the one asset that still has to answer to old rules: Safari
- * before 17 and every Windows shell surface want an .ico, iOS wants a
- * non-transparent 180px PNG for the home screen, and Android reads the sizes
- * named in the web manifest. So the mark is described once, here, in the same
- * 64-unit coordinate space as the SVG, and each format is rendered from it —
- * which is what keeps the tab, the home screen and the install prompt showing
- * the same logo.
+ * `public/logo.svg` is the master — the same file the site header loads — and
+ * covers every current browser, but a tab icon is the one asset that still has
+ * to answer to old rules: Safari before 17 and every Windows shell surface want
+ * an .ico, iOS wants a non-transparent 180px PNG for the home screen, and
+ * Android reads the sizes named in the web manifest. So the mark is described
+ * once, in the master, and every other format is rasterised from it — which is
+ * what keeps the tab, the home screen and the install prompt showing the same
+ * logo.
  *
- * Run after editing `public/favicon.svg`:  node tools/generate-favicons.mjs
+ * The tab and home-screen icons sit the mark on a rounded white card rather
+ * than letting it float: its dark wedge would disappear against a dark tab
+ * strip, and iOS refuses transparency on the home screen anyway.
+ *
+ * Run after editing `public/logo.svg`:  node tools/generate-favicons.mjs
  */
 
 import { deflateSync } from 'node:zlib'
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
 const OUT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public')
+const MASTER = path.join(OUT_DIR, 'logo.svg')
 
-const BRAND = [0x33, 0xa4, 0xbb]
-const WHITE = [0xff, 0xff, 0xff]
+const CARD = [0xff, 0xff, 0xff]
 const CANVAS = 64
 const CORNER_RADIUS = 14
+/** Share of the card the mark spans, so it is not crowded against the corners. */
+const MARK_INSET = 0.78
 
 /** Points along a circular arc, in degrees, clockwise in screen coordinates. */
 function arc(cx, cy, r, from, to, steps = 32) {
@@ -48,61 +54,93 @@ function plate(rounded) {
   ]]
 }
 
-// "PL" — the same monogram the site header renders in its logo chip. The P is
-// two contours: the letter, and the counter punched out of its bowl.
-const LETTER_P = [
-  [[12, 15], [20, 15], ...arc(20, 26, 11, -90, 90), [20, 49], [12, 49]],
-  [[20, 20], ...arc(20, 26, 6, -90, 90), [20, 32]],
-]
-const LETTER_L = [[[36, 15], [44, 15], [44, 42], [53, 42], [53, 49], [36, 49]]]
-
-/** Even-odd fill: a point inside an odd number of contours is inside the shape. */
-function covers(contours, x, y) {
-  let inside = false
-  for (const contour of contours) {
-    for (let i = 0, j = contour.length - 1; i < contour.length; j = i++) {
-      const [xi, yi] = contour[i]
-      const [xj, yj] = contour[j]
-      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside
-    }
-  }
-  return inside
+/**
+ * The master's paths are straight-line contours traced from the artwork, so
+ * these read the two commands they use rather than pulling in an SVG library.
+ */
+function parseContours(d) {
+  return d.split('Z').filter(sub => sub.trim()).map(sub =>
+    sub.replace(/^M/, '').split('L').map(pair => pair.trim().split(/[\s,]+/).map(Number))
+  )
 }
 
-/** Coverage of one pixel, sampled on a 4x4 grid so edges antialias. */
-function coverage(contours, px, py, scale, samples = 4) {
-  let hits = 0
-  for (let sy = 0; sy < samples; sy++) {
-    for (let sx = 0; sx < samples; sx++) {
-      const x = (px + (sx + 0.5) / samples) / scale
-      const y = (py + (sy + 0.5) / samples) / scale
-      if (covers(contours, x, y)) hits++
-    }
-  }
-  return hits / (samples * samples)
+/** Each fill in the master, scaled down into the card and centred. */
+function readMaster() {
+  const svg = readFileSync(MASTER, 'utf8')
+  const offset = (CANVAS * (1 - MARK_INSET)) / 2
+  const layers = [...svg.matchAll(/<path[^>]*fill="(#[0-9a-fA-F]{6})"[^>]*\sd="([^"]+)"/g)].map(
+    ([, fill, d]) => ({
+      color: [1, 3, 5].map(i => parseInt(fill.slice(i, i + 2), 16)),
+      contours: parseContours(d).map(c =>
+        c.map(([x, y]) => [x * MARK_INSET + offset, y * MARK_INSET + offset])
+      ),
+    })
+  )
+  if (!layers.length) throw new Error(`no <path fill="#rrggbb" d="…"> found in ${MASTER}`)
+  return layers
 }
 
-/** RGBA pixels for the mark at `size` px. */
+const LAYERS = readMaster()
+
+/**
+ * Coverage of every pixel of a `size` px image, as a value in 0..1 per pixel.
+ *
+ * Sampled on a 4x4 grid per pixel so edges antialias, but resolved a sample row
+ * at a time — collecting the x where each edge crosses that row, then filling
+ * the spans between them — rather than testing every sample against every edge,
+ * which the traced contours have far too many of to afford. Even-odd fill: the
+ * span between the 1st and 2nd crossing is inside, between the 2nd and 3rd
+ * outside, and so on, which is what punches out the counters.
+ */
+function rasterize(contours, size, scale, samples = 4) {
+  const coverage = new Float32Array(size * size)
+  const weight = 1 / (samples * samples)
+  const crossings = []
+
+  for (let sy = 0; sy < size * samples; sy++) {
+    const y = (sy + 0.5) / (samples * scale)
+    crossings.length = 0
+    for (const contour of contours) {
+      for (let i = 0, j = contour.length - 1; i < contour.length; j = i++) {
+        const [xi, yi] = contour[i]
+        const [xj, yj] = contour[j]
+        if (yi > y !== yj > y) crossings.push(((xj - xi) * (y - yi)) / (yj - yi) + xi)
+      }
+    }
+    if (!crossings.length) continue
+    crossings.sort((a, b) => a - b)
+
+    const row = (sy / samples) | 0
+    for (let k = 0; k + 1 < crossings.length; k += 2) {
+      // Sample columns whose centre falls inside this span.
+      const from = Math.max(0, Math.ceil(crossings[k] * scale * samples - 0.5))
+      const to = Math.min(size * samples - 1, Math.floor(crossings[k + 1] * scale * samples - 0.5))
+      for (let sx = from; sx <= to; sx++) coverage[row * size + ((sx / samples) | 0)] += weight
+    }
+  }
+  return coverage
+}
+
+/** RGBA pixels for the icon at `size` px. */
 function render(size, { rounded = true } = {}) {
   const scale = size / CANVAS
-  const background = plate(rounded)
-  const glyphs = [...LETTER_P, ...LETTER_L]
+  const background = rasterize(plate(rounded), size, scale)
+  const marks = LAYERS.map(layer => rasterize(layer.contours, size, scale))
   const pixels = Buffer.alloc(size * size * 4)
 
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const bg = coverage(background, x, y, scale)
-      const fg = Math.min(coverage(glyphs, x, y, scale), bg)
-      const offset = (y * size + x) * 4
-      if (bg === 0) continue
-      for (let channel = 0; channel < 3; channel++) {
-        // Composite white over the plate, then undo the premultiply: PNG and
-        // BMP both store straight alpha.
-        const premultiplied = BRAND[channel] * (bg - fg) + WHITE[channel] * fg
-        pixels[offset + channel] = Math.round(premultiplied / bg)
-      }
-      pixels[offset + 3] = Math.round(bg * 255)
-    }
+  for (let i = 0; i < size * size; i++) {
+    const bg = Math.min(background[i], 1)
+    if (bg === 0) continue
+    // Paint the card, then each layer of the mark over it in document order.
+    const rgb = [...CARD]
+    marks.forEach((mark, layer) => {
+      const fg = Math.min(mark[i], 1)
+      if (fg === 0) return
+      for (let c = 0; c < 3; c++) rgb[c] = rgb[c] * (1 - fg) + LAYERS[layer].color[c] * fg
+    })
+    const offset = i * 4
+    for (let c = 0; c < 3; c++) pixels[offset + c] = Math.round(rgb[c])
+    pixels[offset + 3] = Math.round(bg * 255)
   }
   return { size, pixels }
 }
@@ -208,6 +246,24 @@ const write = (name, buffer) => {
   console.log(`${name.padEnd(22)} ${buffer.length.toLocaleString()} bytes`)
 }
 
+/** The tab icon: the master mark, inset on the same rounded card. */
+function faviconSvg() {
+  const paths = LAYERS.map(layer => {
+    const fill = '#' + layer.color.map(c => c.toString(16).padStart(2, '0')).join('')
+    const d = layer.contours
+      .map(c => 'M' + c.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join('L') + 'Z')
+      .join('')
+    return `  <path fill="${fill}" fill-rule="evenodd" d="${d}"/>`
+  })
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Plenilo.com">
+  <title>Plenilo.com</title>
+  <rect width="64" height="64" rx="${CORNER_RADIUS}" fill="#fff"/>
+${paths.join('\n')}
+</svg>
+`
+}
+
+write('favicon.svg', Buffer.from(faviconSvg()))
 write('favicon.ico', encodeIco([16, 32, 48].map(size => render(size))))
 write('apple-touch-icon.png', encodePng(render(180, { rounded: false })))
 write('icon-192.png', encodePng(render(192)))

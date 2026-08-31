@@ -5,6 +5,7 @@ import { useAdminSidebarOpen, useSetAdminSidebarOpen } from '@/stores/usePrefere
 import { useSignOut } from '@/stores/useAuthStore'
 import { useToastDismiss, useToastId, useToastMessage } from '@/stores/useToastStore'
 import Icon from '@/components/Icon'
+import BrandMark from '@/components/BrandMark'
 import { usePageMeta } from '@/lib/seo'
 
 /** Section key -> URL segment. The dashboard is the index route. */
@@ -65,9 +66,7 @@ export default function AdminLayout() {
       }}>
         {/* Logo */}
         <div style={{ height: 60, borderBottom: `1px solid ${color.border.base}`, display: 'flex', alignItems: 'center', padding: '0 16px', gap: 10, flexShrink: 0 }}>
-          <div style={{ width: 32, height: 32, background: color.brand.base, borderRadius: radius.xl, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <span style={{ color: color.text.inverse, fontSize: size.sm, fontWeight: weight.bold }}>PL</span>
-          </div>
+          <BrandMark size={32} />
           {sidebarOpen && <span style={{ fontSize: size.base, fontWeight: weight.semibold, color: color.text.primary, whiteSpace: 'nowrap' }}>Plenilo Admin</span>}
         </div>
 

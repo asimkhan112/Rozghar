@@ -7,6 +7,10 @@ between them.
 
 Writing one caption and truncating it for the others is how you get a LinkedIn
 post that reads like an SMS and a tweet that ends mid-word.
+
+Every caption also carries the WhatsApp channel, because a post is read once
+and a channel follower is read every time: the whole point of sharing a listing
+to four networks is to bring people somewhere they stay.
 """
 
 from __future__ import annotations
@@ -134,6 +138,18 @@ def _hashtags(data: CaptionInput, limit: int = 6) -> tuple[str, ...]:
     return tuple(tags[:limit])
 
 
+def _channel_lines(prompt: str) -> list[str]:
+    """The channel call-to-action, or nothing when no channel is configured.
+
+    Returned as caption lines rather than a string so a caller can splice it
+    into a list without leaving a blank paragraph behind when it is empty.
+    """
+    channel = settings.whatsapp_channel_url.strip()
+    if not channel:
+        return []
+    return ["", prompt, channel]
+
+
 def _hashtag_line(tags: tuple[str, ...]) -> str:
     return " ".join(f"#{tag}" for tag in tags)
 
@@ -163,7 +179,9 @@ def build_captions(data: CaptionInput) -> Captions:
         lines.append(f"📈 Experience: {data.experience}")
     if data.skills:
         lines += ["", "Required Skills:", _skill_bullets(data.skills)]
-    lines += ["", "Apply here:", url, "", _hashtag_line(tags)]
+    lines += ["", "Apply here:", url]
+    lines += _channel_lines("📢 Daily jobs on our WhatsApp channel:")
+    lines += ["", _hashtag_line(tags)]
     linkedin = "\n".join(lines)
 
     # --- WhatsApp --------------------------------------------------------
@@ -178,7 +196,9 @@ def build_captions(data: CaptionInput) -> Captions:
     ]
     if data.salary:
         whatsapp_lines.append(f"💰 {data.salary}")
-    whatsapp_lines += ["", "Apply here:", url, "", "Found on Plenilo.com"]
+    whatsapp_lines += ["", "Apply here:", url]
+    whatsapp_lines += _channel_lines("📢 Join our channel for daily jobs:")
+    whatsapp_lines += ["", "Found on Plenilo.com"]
     whatsapp = "\n".join(whatsapp_lines)
 
     # --- Facebook --------------------------------------------------------
@@ -189,7 +209,9 @@ def build_captions(data: CaptionInput) -> Captions:
     ]
     if data.salary:
         facebook_lines.append(f"💰 {data.salary}")
-    facebook_lines += ["", f"Apply now: {url}", "", _hashtag_line(tags[:4])]
+    facebook_lines += ["", f"Apply now: {url}"]
+    facebook_lines += _channel_lines("📢 Daily jobs on our WhatsApp channel:")
+    facebook_lines += ["", _hashtag_line(tags[:4])]
     facebook = "\n".join(facebook_lines)
 
     # --- X ---------------------------------------------------------------
@@ -203,15 +225,17 @@ def build_captions(data: CaptionInput) -> Captions:
 def _build_tweet(data: CaptionInput, tags: tuple[str, ...], url: str) -> str:
     """Fit the post to 280, dropping the least valuable parts first.
 
-    Order of sacrifice: salary, then location, then hashtags, then the title is
-    truncated. The link and the company are never dropped — without them the
-    post is not actionable.
+    Order of sacrifice: salary, then location, then the channel line, then the
+    title is truncated. The job link and the company are never dropped —
+    without them the post is not actionable — and the channel outlives the
+    listing, so it goes late rather than first.
     """
     tag_line = _hashtag_line(tags[:3])
-    # The URL is counted at its wrapped cost, not its literal length.
-    fixed = TWEET_URL_COST + len("\n\n") + len(tag_line) + len("\n\n")
+    channel = settings.whatsapp_channel_url.strip()
 
-    def compose(title: str, include_salary: bool, include_location: bool) -> str:
+    def compose(
+        title: str, include_salary: bool, include_location: bool, with_channel: bool
+    ) -> str:
         head = f"🚀 {title} @ {data.company}"
         bits = []
         if include_location:
@@ -219,22 +243,32 @@ def _build_tweet(data: CaptionInput, tags: tuple[str, ...], url: str) -> str:
         if include_salary and data.salary:
             bits.append(f"💰 {data.salary}")
         detail = ("\n" + "  ·  ".join(bits)) if bits else ""
-        return f"{head}{detail}\n\n{url}\n\n{tag_line}"
+        channel_line = f"\n\n📢 {channel}" if with_channel and channel else ""
+        return f"{head}{detail}\n\n{url}{channel_line}\n\n{tag_line}"
 
-    def cost(text: str) -> int:
-        return len(text) - len(url) + TWEET_URL_COST
+    def cost(text: str, with_channel: bool) -> int:
+        # Every link is wrapped to a fixed width by t.co, however long it is,
+        # so each one is counted at that width rather than at its own length.
+        links = [url] + ([channel] if with_channel and channel else [])
+        return len(text) - sum(map(len, links)) + TWEET_URL_COST * len(links)
 
-    for salary, location in ((True, True), (False, True), (False, False)):
-        candidate = compose(data.title, salary, location)
-        if cost(candidate) <= TWEET_LIMIT:
+    for salary, location, with_channel in (
+        (True, True, True),
+        (False, True, True),
+        (False, False, True),
+        (False, False, False),
+    ):
+        candidate = compose(data.title, salary, location, with_channel)
+        if cost(candidate, with_channel) <= TWEET_LIMIT:
             return candidate
 
     # Still too long: shorten the title itself, keeping whole words.
+    fixed = TWEET_URL_COST + len("\n\n") + len(tag_line) + len("\n\n")
     budget = TWEET_LIMIT - fixed - len(f"🚀  @ {data.company}") - 2
     title = data.title
     while len(title) > budget and " " in title:
         title = title.rsplit(" ", 1)[0]
-    return compose(f"{title}…", False, False)
+    return compose(f"{title}…", False, False, False)
 
 
 def share_urls(job_url: str, captions: Captions) -> dict[str, str]:

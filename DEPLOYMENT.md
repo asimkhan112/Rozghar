@@ -47,6 +47,7 @@ Environment variables:
 | `ENVIRONMENT` | `staging` |
 | `SECRET_KEY` | `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
 | `SITE_URL` | your Vercel URL — **not** the Railway one |
+| `WHATSAPP_CHANNEL_URL` | optional; the channel every share caption links to. Defaults to the Plenilo channel; set it empty to drop the line |
 | `JSON_LOGS` | `true` |
 | `ANTHROPIC_API_KEY` | optional; AI endpoints return 503 without it |
 | `USAJOBS_API_KEY` | optional; the Fetch jobs button returns 503 without it |

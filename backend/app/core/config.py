@@ -71,6 +71,11 @@ class Settings(BaseSettings):
     #: the proxy's internal hostname to Google.
     site_url: str = "http://localhost:8443"
 
+    #: The WhatsApp channel every generated caption points at, so a listing
+    #: shared to any network also recruits followers for the channel. Set it
+    #: to an empty string to leave the line out of every caption.
+    whatsapp_channel_url: str = "https://whatsapp.com/channel/0029Vb96PWl3gvWdiVOB1Z1w"
+
     # --- database --------------------------------------------------------
     #: A complete connection string, which is how hosted Postgres is supplied:
     #: Neon, Railway, Supabase and Heroku all hand out one URL rather than five
